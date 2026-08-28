@@ -1,26 +1,34 @@
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class MOSourceType(str, Enum):
+    DEDICATED_MO = "DEDICATED_MO"
+    DESCRIPTION_DERIVED = "DESCRIPTION_DERIVED"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
 class CaseIdentityFeatures(BaseModel):
-    """Case identity features."""
+    """Case identity features with strict missing-data semantics."""
     case_id: str
     fir_number: str
-    station_id: str
-    police_station: str
-    district: str
-    state: str
+    station_id: Optional[str] = None
+    police_station: Optional[str] = None
+    district: Optional[str] = None
+    state: Optional[str] = None
     registration_date: Optional[str] = None
     incident_date: Optional[str] = None
-    status: str = "UNDER_INVESTIGATION"
+    status: Optional[str] = None
 
 
 class CrimeCharacteristicsFeatures(BaseModel):
-    """Crime characteristics features."""
-    crime_type: str
-    crime_category: str
+    """Crime characteristics features with explicit MO source attribution."""
+    crime_type: Optional[str] = None
+    crime_category: Optional[str] = None
     description: Optional[str] = None
     raw_mo: Optional[str] = None
+    mo_source: MOSourceType = MOSourceType.UNAVAILABLE
     normalized_mo_tokens: List[str] = Field(default_factory=list)
     mo_keywords: List[str] = Field(default_factory=list)
 

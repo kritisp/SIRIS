@@ -10,6 +10,7 @@ from app.services.case_similarity.models import (
     LinkedEntitiesFeatures,
     TemporalFeatures,
     ExtractedCaseFeatures,
+    MOSourceType,
 )
 from app.services.case_similarity.feature_extractor import CaseFeatureExtractor
 
@@ -25,5 +26,6 @@ __all__ = [
     "LinkedEntitiesFeatures",
     "TemporalFeatures",
     "ExtractedCaseFeatures",
+    "MOSourceType",
     "CaseFeatureExtractor",
 ]

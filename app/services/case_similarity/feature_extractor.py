@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime, time
 from typing import Any, Dict, List, Optional
 from app.models.case import Case
@@ -13,6 +14,7 @@ from app.services.case_similarity.models import (
     GeographicCharacteristicsFeatures,
     LegalCharacteristicsFeatures,
     LinkedEntitiesFeatures,
+    MOSourceType,
     TemporalFeatures,
 )
 
@@ -27,12 +29,37 @@ def get_time_of_day_bucket(hour: Optional[int]) -> Optional[str]:
         return "AFTERNOON"
     elif 17 <= hour < 21:
         return "EVENING"
-    else:
+    elif 0 <= hour < 6 or 21 <= hour <= 23:
         return "NIGHT"
+    return None
+
+
+def normalize_legal_section_code(item: Any) -> tuple[str, str]:
+    """Extracts (raw_code, normalized_section) preserving exact law name (IPC, BNS, IT_ACT, etc.)."""
+    if isinstance(item, dict):
+        code = str(item.get("code") or item.get("section") or "").strip()
+        law = str(item.get("law_name") or item.get("law") or "").strip()
+        if law and code:
+            return code, f"{law}_{code}"
+        elif code:
+            return code, code
+        return "", ""
+
+    s = str(item).strip()
+    if not s:
+        return "", ""
+
+    # Parse strings like "BNS 303", "IPC 379", "BNS_303", "379"
+    match = re.match(r"^([A-Za-z_]+)[\s_]+(.+)$", s)
+    if match:
+        law_part, code_part = match.groups()
+        return code_part, f"{law_part.upper()}_{code_part}"
+
+    return s, s
 
 
 class CaseFeatureExtractor:
-    """Deterministic Case Feature Extractor for S.I.R.I.S. Central Intelligence Engine."""
+    """Deterministic, production-ready Case Feature Extractor for S.I.R.I.S. Central Intelligence Engine."""
 
     @classmethod
     def extract_from_model(cls, case: Case) -> ExtractedCaseFeatures:
@@ -47,24 +74,38 @@ class CaseFeatureExtractor:
             state=case.state,
             registration_date=str(case.registration_date) if case.registration_date else None,
             incident_date=str(case.incident_date) if case.incident_date else None,
-            status=case.status or "UNDER_INVESTIGATION"
+            status=case.status
         )
 
-        # 2. Crime Characteristics
-        raw_mo = case.description
+        # 2. MO Derivation & Crime Characteristics
+        dedicated_mo = getattr(case, "modus_operandi", None)
+        desc = case.description
+
+        if dedicated_mo and str(dedicated_mo).strip():
+            raw_mo = str(dedicated_mo).strip()
+            mo_source = MOSourceType.DEDICATED_MO
+        elif desc and str(desc).strip():
+            raw_mo = str(desc).strip()
+            mo_source = MOSourceType.DESCRIPTION_DERIVED
+        else:
+            raw_mo = None
+            mo_source = MOSourceType.UNAVAILABLE
+
         norm_mo = EntityNormalizationService.normalize_mo(raw_mo)
+
         crime = CrimeCharacteristicsFeatures(
             crime_type=case.crime_type,
             crime_category=case.crime_category,
-            description=case.description,
+            description=desc,
             raw_mo=raw_mo,
+            mo_source=mo_source,
             normalized_mo_tokens=norm_mo.tokens,
             mo_keywords=[t for t in norm_mo.tokens if len(t) >= 4]
         )
 
         # 3. Legal Characteristics
-        legal_sections = []
-        normalized_sections = []
+        legal_sections: List[str] = []
+        normalized_sections: List[str] = []
         if hasattr(case, "legal_section_associations") and case.legal_section_associations:
             for assoc in case.legal_section_associations:
                 if assoc.legal_section:
@@ -89,7 +130,7 @@ class CaseFeatureExtractor:
         geo_lon = loc_obj.longitude if loc_obj else None
 
         raw_loc_str = " ".join([x for x in [geo_locality, geo_address, geo_district] if x])
-        norm_loc = EntityNormalizationService.normalize_location(raw_loc_str)
+        norm_loc = EntityNormalizationService.normalize_location(raw_loc_str) if raw_loc_str.strip() else None
 
         geographic = GeographicCharacteristicsFeatures(
             address=geo_address,
@@ -99,8 +140,8 @@ class CaseFeatureExtractor:
             state=geo_state,
             latitude=geo_lat,
             longitude=geo_lon,
-            normalized_location_text=norm_loc.normalized_value or None,
-            location_tokens=norm_loc.tokens
+            normalized_location_text=norm_loc.normalized_value if norm_loc else None,
+            location_tokens=norm_loc.tokens if norm_loc else []
         )
 
         # 5. Linked Entities
@@ -219,67 +260,110 @@ class CaseFeatureExtractor:
 
     @classmethod
     def extract_from_dict(cls, c_dict: Dict[str, Any]) -> ExtractedCaseFeatures:
-        """Extracts normalized features from a case dictionary payload."""
-        cid = str(c_dict.get("id") or c_dict.get("case_id", "CASE_001"))
-        fir = str(c_dict.get("fir_number", "FIR/000/2026"))
+        """Extracts normalized features from a case dictionary without inventing fabricated defaults."""
+        cid = c_dict.get("id") or c_dict.get("case_id")
+        if not cid or not str(cid).strip():
+            raise ValueError("case_id is required for feature extraction")
+
+        fir = c_dict.get("fir_number")
+        if not fir or not str(fir).strip():
+            raise ValueError("fir_number is required for feature extraction")
 
         identity = CaseIdentityFeatures(
-            case_id=cid,
-            fir_number=fir,
-            station_id=str(c_dict.get("station_id", "PS_BBSR_001")),
-            police_station=str(c_dict.get("police_station", "Bhubaneswar Central PS")),
-            district=str(c_dict.get("district", "Khordha")),
-            state=str(c_dict.get("state", "Odisha")),
-            registration_date=str(c_dict.get("registration_date")) if c_dict.get("registration_date") else None,
-            incident_date=str(c_dict.get("incident_date")) if c_dict.get("incident_date") else None,
-            status=str(c_dict.get("status", "UNDER_INVESTIGATION"))
+            case_id=str(cid).strip(),
+            fir_number=str(fir).strip(),
+            station_id=str(c_dict["station_id"]).strip() if c_dict.get("station_id") else None,
+            police_station=str(c_dict["police_station"]).strip() if c_dict.get("police_station") else None,
+            district=str(c_dict["district"]).strip() if c_dict.get("district") else None,
+            state=str(c_dict["state"]).strip() if c_dict.get("state") else None,
+            registration_date=str(c_dict["registration_date"]).strip() if c_dict.get("registration_date") else None,
+            incident_date=str(c_dict["incident_date"]).strip() if c_dict.get("incident_date") else None,
+            status=str(c_dict["status"]).strip() if c_dict.get("status") else None
         )
 
+        # MO Derivation
+        dedicated_mo = c_dict.get("modus_operandi") or c_dict.get("mo")
         desc = c_dict.get("description")
-        norm_mo = EntityNormalizationService.normalize_mo(desc)
+
+        if dedicated_mo and str(dedicated_mo).strip():
+            raw_mo = str(dedicated_mo).strip()
+            mo_source = MOSourceType.DEDICATED_MO
+        elif desc and str(desc).strip():
+            raw_mo = str(desc).strip()
+            mo_source = MOSourceType.DESCRIPTION_DERIVED
+        else:
+            raw_mo = None
+            mo_source = MOSourceType.UNAVAILABLE
+
+        norm_mo = EntityNormalizationService.normalize_mo(raw_mo) if raw_mo else None
+
         crime = CrimeCharacteristicsFeatures(
-            crime_type=str(c_dict.get("crime_type", "THEFT")),
-            crime_category=str(c_dict.get("crime_category", "PROPERTY_CRIME")),
-            description=desc,
-            raw_mo=desc,
-            normalized_mo_tokens=norm_mo.tokens,
-            mo_keywords=[t for t in norm_mo.tokens if len(t) >= 4]
+            crime_type=str(c_dict["crime_type"]).strip() if c_dict.get("crime_type") else None,
+            crime_category=str(c_dict["crime_category"]).strip() if c_dict.get("crime_category") else None,
+            description=str(desc).strip() if desc else None,
+            raw_mo=raw_mo,
+            mo_source=mo_source,
+            normalized_mo_tokens=norm_mo.tokens if norm_mo else [],
+            mo_keywords=[t for t in norm_mo.tokens if len(t) >= 4] if norm_mo else []
         )
 
-        sections = c_dict.get("legal_sections") or []
+        # Legal Sections Preservation (BNS, IPC, IT_ACT, etc.)
+        legal_raw = c_dict.get("legal_sections") or []
+        legal_sections = []
+        normalized_sections = []
+
+        for item in legal_raw:
+            raw_code, norm_sec = normalize_legal_section_code(item)
+            if raw_code:
+                legal_sections.append(raw_code)
+            if norm_sec:
+                normalized_sections.append(norm_sec)
+
         legal = LegalCharacteristicsFeatures(
-            legal_sections=[str(s) for s in sections],
-            normalized_sections=[f"IPC_{s}" if not str(s).startswith("IPC") else str(s) for s in sections]
+            legal_sections=legal_sections,
+            normalized_sections=normalized_sections
         )
 
-        loc_text = c_dict.get("locality") or c_dict.get("address")
-        norm_loc = EntityNormalizationService.normalize_location(loc_text)
+        # Geographic Characteristics
+        addr = c_dict.get("address")
+        locality = c_dict.get("locality")
+        city = c_dict.get("city")
+        district = c_dict.get("district")
+        state = c_dict.get("state")
+        lat = c_dict.get("latitude")
+        lon = c_dict.get("longitude")
+
+        raw_loc_str = " ".join([str(x).strip() for x in [locality, addr, district] if x and str(x).strip()])
+        norm_loc = EntityNormalizationService.normalize_location(raw_loc_str) if raw_loc_str else None
+
         geographic = GeographicCharacteristicsFeatures(
-            address=c_dict.get("address"),
-            locality=c_dict.get("locality"),
-            city=c_dict.get("city"),
-            district=c_dict.get("district"),
-            state=c_dict.get("state"),
-            latitude=c_dict.get("latitude"),
-            longitude=c_dict.get("longitude"),
-            normalized_location_text=norm_loc.normalized_value or None,
-            location_tokens=norm_loc.tokens
+            address=str(addr).strip() if addr else None,
+            locality=str(locality).strip() if locality else None,
+            city=str(city).strip() if city else None,
+            district=str(district).strip() if district else None,
+            state=str(state).strip() if state else None,
+            latitude=float(lat) if lat is not None else None,
+            longitude=float(lon) if lon is not None else None,
+            normalized_location_text=norm_loc.normalized_value if norm_loc else None,
+            location_tokens=norm_loc.tokens if norm_loc else []
         )
 
-        # Entities
+        # Linked Entities
         persons = []
         for p in c_dict.get("persons") or []:
             name = p.get("name") if isinstance(p, dict) else str(p)
             norm_p = EntityNormalizationService.normalize_person(name)
             pid = p.get("id", "p1") if isinstance(p, dict) else "p1"
-            role = p.get("role", "ACCUSED") if isinstance(p, dict) else "ACCUSED"
+            role = p.get("role", "OTHER") if isinstance(p, dict) else "OTHER"
             persons.append(
                 ExtractedPersonEntity(
                     person_id=str(pid),
                     name=name,
                     normalized_name=norm_p.normalized_value,
                     phonetic_name=norm_p.phonetic_value,
-                    role=role
+                    role=role,
+                    gender=p.get("gender") if isinstance(p, dict) else None,
+                    date_of_birth=str(p.get("date_of_birth")) if (isinstance(p, dict) and p.get("date_of_birth")) else None
                 )
             )
 
@@ -351,6 +435,12 @@ class CaseFeatureExtractor:
                     pass
 
         hr = c_dict.get("hour")
+        if hr is not None:
+            try:
+                hr = int(hr)
+            except (ValueError, TypeError):
+                hr = None
+
         tod = get_time_of_day_bucket(hr)
 
         temporal = TemporalFeatures(
