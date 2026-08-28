@@ -11,7 +11,7 @@ from app.data.generators.location_generator import generate_synthetic_locations
 from app.data.generators.person_generator import generate_synthetic_persons
 from app.data.generators.vehicle_generator import generate_synthetic_vehicles
 from app.data.generators.phone_generator import generate_synthetic_phones
-from app.data.generators.cluster_builder import build_synthetic_dataset
+from app.data.generators.cluster_builder import build_synthetic_dataset_v2
 from app.data.ground_truth import GROUND_TRUTH_CLUSTERS
 
 logging.basicConfig(
@@ -19,6 +19,32 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def safe_clear_domain_data(session: Session):
+    """Safely clears existing synthetic domain data using transaction-scoped DELETE statements."""
+    logger.info("Executing safe development reset of domain tables...")
+    tables = [
+        "case_legal_sections",
+        "case_persons",
+        "case_vehicles",
+        "case_phones",
+        "evidences",
+        "investigation_events",
+        "chargesheets",
+        "cases",
+        "person_phones",
+        "persons",
+        "vehicles",
+        "phones",
+        "locations",
+    ]
+    for table in tables:
+        try:
+            session.execute(text(f"DELETE FROM {table};"))
+        except Exception as e:
+            logger.debug(f"Clear table {table} skipped or deferred: {e}")
+    session.flush()
 
 
 def seed_database(
@@ -30,7 +56,7 @@ def seed_database(
 ) -> Tuple[bool, Dict[str, Any]]:
     """Executes reproducible transactional seed ingestion into Supabase PostgreSQL (or provided engine)."""
 
-    logger.info(f"Initializing synthetic crime dataset seeding (Seed={seed}, Cases={total_cases})...")
+    logger.info(f"Initializing synthetic crime dataset V2 seeding (Seed={seed}, Cases={total_cases})...")
     rng = random.Random(seed)
 
     db_engine = target_engine or default_engine
@@ -45,11 +71,9 @@ def seed_database(
 
     try:
         if drop_existing:
-            logger.info("Resetting existing domain tables for clean reproducible seeding...")
-            Base.metadata.drop_all(bind=db_engine)
-            Base.metadata.create_all(bind=db_engine)
+            safe_clear_domain_data(session)
 
-        # 1. Create Base Legal Sections if missing
+        # 1. Base Legal Sections
         existing_sections = session.query(LegalSection).all()
         if not existing_sections:
             sec1 = LegalSection(code="BNS 303", title="Theft", description="Punishment for committing theft", law_name="BNS")
@@ -61,7 +85,7 @@ def seed_database(
             session.flush()
             existing_sections = [sec1, sec2, sec3, sec4, sec5]
 
-        # 2. Generate Entities
+        # 2. Entities
         locations = generate_synthetic_locations(rng, count=100)
         persons, name_variations = generate_synthetic_persons(rng, count=220)
         vehicles = generate_synthetic_vehicles(rng, count=140)
@@ -73,8 +97,8 @@ def seed_database(
         session.add_all(phones)
         session.flush()
 
-        # 3. Build Interconnected Cases & Clusters
-        cases, ground_truth = build_synthetic_dataset(
+        # 3. Interconnected Cases & Clusters V2
+        cases, ground_truth, style_counts = build_synthetic_dataset_v2(
             rng=rng,
             locations=locations,
             persons=persons,
@@ -88,7 +112,7 @@ def seed_database(
         session.add_all(cases)
         session.commit()
 
-        # 4. Gather Dataset Statistics
+        # 4. Gather Statistics
         db_cases_cnt = session.query(text("COUNT(*) FROM cases")).scalar()
         db_persons_cnt = session.query(text("COUNT(*) FROM persons")).scalar()
         db_vehicles_cnt = session.query(text("COUNT(*) FROM vehicles")).scalar()
@@ -100,7 +124,7 @@ def seed_database(
         db_stations_cnt = session.query(text("COUNT(DISTINCT station_id) FROM cases")).scalar()
 
         logger.info("==================================================")
-        logger.info("SYNTHETIC DATASET SEEDING COMPLETED SUCCESSFULLY")
+        logger.info("SYNTHETIC DATASET V2 SEEDING COMPLETED SUCCESSFULLY")
         logger.info("==================================================")
         logger.info(f"Total Cases/FIRs     : {db_cases_cnt}")
         logger.info(f"Total Persons        : {db_persons_cnt}")
@@ -111,6 +135,7 @@ def seed_database(
         logger.info(f"Total Events         : {db_ie_cnt}")
         logger.info(f"Total Chargesheets   : {db_cs_cnt}")
         logger.info(f"Police Stations      : {db_stations_cnt}")
+        logger.info(f"Narrative Styles     : {style_counts}")
         logger.info("==================================================")
 
         return True, {
@@ -123,6 +148,7 @@ def seed_database(
             "events": db_ie_cnt,
             "chargesheets": db_cs_cnt,
             "stations": db_stations_cnt,
+            "narrative_styles": style_counts,
         }
 
     except Exception as e:

@@ -1,6 +1,6 @@
 from typing import Dict, List, Any
 
-# Ground truth metadata repository for planted crime clusters
+# Ground truth metadata repository for planted crime clusters V2
 GROUND_TRUTH_CLUSTERS: Dict[str, Dict[str, Any]] = {
     "CLUSTER_A_VEHICLE_NETWORK": {
         "cluster_id": "CLUSTER_A_VEHICLE_NETWORK",
@@ -26,8 +26,8 @@ GROUND_TRUTH_CLUSTERS: Dict[str, Dict[str, Any]] = {
     },
     "CLUSTER_C_FRAUD_NETWORK": {
         "cluster_id": "CLUSTER_C_FRAUD_NETWORK",
-        "description": "Online stock investment and trading fraud operating across Bhubaneswar and Sambalpur",
-        "station_ids": ["PS_BBSR_002", "PS_SBP_001"],
+        "description": "Online stock investment and trading fraud operating across Bhubaneswar, Sambalpur, and Rourkela",
+        "station_ids": ["PS_BBSR_002", "PS_SBP_001", "PS_RKL_001"],
         "expected_relationships": [
             "SHARED_PHONE",
             "SHARED_PERSON",

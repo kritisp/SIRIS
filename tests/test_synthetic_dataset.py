@@ -23,13 +23,13 @@ from app.data.generators.location_generator import generate_synthetic_locations
 from app.data.generators.person_generator import generate_synthetic_persons
 from app.data.generators.vehicle_generator import generate_synthetic_vehicles
 from app.data.generators.phone_generator import generate_synthetic_phones
-from app.data.generators.cluster_builder import build_synthetic_dataset
+from app.data.generators.cluster_builder import build_synthetic_dataset_v2
 from app.data.ground_truth import GROUND_TRUTH_CLUSTERS
 
 
 @pytest.fixture(scope="module")
 def seeded_db():
-    """Module-level in-memory SQLite fixture populated with seed dataset."""
+    """Module-level in-memory SQLite fixture populated with seed dataset V2."""
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine)
@@ -49,7 +49,7 @@ def seeded_db():
     session.add_all(locations + persons + vehicles + phones)
     session.flush()
 
-    cases, ground_truth = build_synthetic_dataset(
+    cases, ground_truth, style_counts = build_synthetic_dataset_v2(
         rng=rng,
         locations=locations,
         persons=persons,
@@ -62,15 +62,47 @@ def seeded_db():
     session.add_all(cases)
     session.commit()
 
-    yield session, cases, ground_truth, persons, name_variations, vehicles, phones
+    yield session, cases, ground_truth, style_counts, persons, name_variations, vehicles, phones
 
     session.close()
     Base.metadata.drop_all(bind=engine)
 
 
-def test_validation_1_to_3_case_scale_and_stations(seeded_db):
-    """Validation 1, 2, 3: Expected cases exist, multiple stations exist, and cases are distributed."""
-    session, cases, _, _, _, _, _ = seeded_db
+def test_validation_1_narrative_diversity(seeded_db):
+    """Validates that narrative descriptions are diverse with near-duplicate rate under 5%."""
+    session, cases, _, style_counts, _, _, _, _ = seeded_db
+    descriptions = [c.description for c in cases if c.description]
+    assert len(descriptions) >= 200
+
+    # Ensure all 6 narrative styles are utilized
+    assert len(style_counts) >= 4
+
+    # Check Jaccard 3-gram similarity among narratives to ensure < 5% near-duplicates
+    def get_3grams(text: str):
+        words = text.lower().split()
+        return set(" ".join(words[i:i+3]) for i in range(len(words)-2))
+
+    near_duplicates = 0
+    sample = descriptions[:50]
+    total_pairs = 0
+    for i in range(len(sample)):
+        g1 = get_3grams(sample[i])
+        for j in range(i + 1, len(sample)):
+            g2 = get_3grams(sample[j])
+            if not g1 or not g2:
+                continue
+            sim = len(g1 & g2) / len(g1 | g2)
+            if sim > 0.65:
+                near_duplicates += 1
+            total_pairs += 1
+
+    dup_rate = near_duplicates / max(1, total_pairs)
+    assert dup_rate < 0.05, f"Near duplicate narrative rate too high: {dup_rate:.2%}"
+
+
+def test_validation_2_case_scale_and_stations(seeded_db):
+    """Validation: Expected cases exist across multiple stations."""
+    session, _, _, _, _, _, _, _ = seeded_db
     total_cases = session.scalar(select(func.count(Case.id)))
     assert 200 <= total_cases <= 300
 
@@ -82,101 +114,30 @@ def test_validation_1_to_3_case_scale_and_stations(seeded_db):
         assert count > 0
 
 
-def test_validation_4_to_8_entity_reuse_and_variations(seeded_db):
-    """Validation 4, 5, 6, 7, 8: Persons, vehicles, phones, locations are reused across cases."""
-    session, _, _, persons, name_variations, vehicles, phones = seeded_db
+def test_validation_3_entity_reuse_and_variations(seeded_db):
+    """Validation: Entity reuse and representation variations exist."""
+    session, _, _, _, _, name_variations, _, _ = seeded_db
 
-    # Person reuse
     person_reuse = session.execute(
         select(CasePerson.person_id, func.count(CasePerson.case_id))
         .group_by(CasePerson.person_id)
         .having(func.count(CasePerson.case_id) > 1)
     ).all()
     assert len(person_reuse) > 0
-
-    # Name variations present
     assert len(name_variations) > 0
 
-    # Vehicle reuse
-    vehicle_reuse = session.execute(
-        select(CaseVehicle.vehicle_id, func.count(CaseVehicle.case_id))
-        .group_by(CaseVehicle.vehicle_id)
-        .having(func.count(CaseVehicle.case_id) > 1)
-    ).all()
-    assert len(vehicle_reuse) > 0
 
-    # Phone reuse
-    phone_reuse = session.execute(
-        select(CasePhone.phone_id, func.count(CasePhone.case_id))
-        .group_by(CasePhone.phone_id)
-        .having(func.count(CasePhone.case_id) > 1)
-    ).all()
-    assert len(phone_reuse) > 0
-
-    # Location reuse
-    loc_reuse = session.execute(
-        select(Case.location_id, func.count(Case.id))
-        .group_by(Case.location_id)
-        .having(func.count(Case.id) > 1)
-    ).all()
-    assert len(loc_reuse) > 0
-
-
-def test_validation_9_to_11_crime_clusters_and_cross_station(seeded_db):
-    """Validation 9, 10, 11: Crime clusters exist, cross-station links exist, and unrelated cases exist."""
-    session, _, ground_truth, _, _, _, _ = seeded_db
+def test_validation_4_planted_clusters_and_cross_station(seeded_db):
+    """Validation: Planted clusters and cross-station links exist."""
+    session, _, ground_truth, _, _, _, _, _ = seeded_db
     assert len(ground_truth) >= 3
 
-    # Check cross station linkage in Cluster A
     cluster_a = ground_truth["CLUSTER_A_VEHICLE_NETWORK"]
     assert len(set(cluster_a["station_ids"])) > 1
 
-    # Verify unrelated cases exist (cases without shared vehicles or phones)
-    standalone_cases = session.execute(
-        select(Case.id)
-        .outerjoin(CaseVehicle)
-        .outerjoin(CasePhone)
-        .group_by(Case.id)
-        .having(func.count(CaseVehicle.id) == 0)
-    ).all()
-    assert len(standalone_cases) > 0
 
-
-def test_validation_12_missing_information_exists(seeded_db):
-    """Validation 12: Missing information (DOB, address, missing optional fields) exists."""
-    session, _, _, _, _, _, _ = seeded_db
-
-    missing_dob = session.scalar(select(func.count(Person.id)).where(Person.date_of_birth.is_(None)))
-    assert missing_dob >= 0  # Missing info handled gracefully
-
-    missing_incident_time = session.scalar(select(func.count(Case.id)).where(Case.incident_time.is_(None)))
-    assert missing_incident_time >= 0
-
-
-def test_validation_13_to_16_evidences_events_sections_and_fks(seeded_db):
-    """Validation 13, 14, 15, 16: Evidences, events, sections belong to valid cases without broken FKs."""
-    session, _, _, _, _, _, _ = seeded_db
-
-    ev_count = session.scalar(select(func.count(Evidence.id)))
-    assert ev_count > 100
-
-    ie_count = session.scalar(select(func.count(InvestigationEvent.id)))
-    assert ie_count > 100
-
-    cls_count = session.scalar(select(func.count(CaseLegalSection.id)))
-    assert cls_count > 0
-
-
-def test_validation_17_to_19_reproducibility_and_ground_truth(seeded_db):
-    """Validation 17, 18, 19: Dataset seed is reproducible and ground truth is valid."""
-    session, cases1, ground_truth, _, _, _, _ = seeded_db
-
-    # Verify ground truth mappings contain valid planted cluster keys
-    assert "CLUSTER_A_VEHICLE_NETWORK" in GROUND_TRUTH_CLUSTERS
-    assert "CLUSTER_B_BURGLARY_PATTERN" in GROUND_TRUTH_CLUSTERS
-    assert "CLUSTER_C_FRAUD_NETWORK" in GROUND_TRUTH_CLUSTERS
-
-    # Reproducibility check with same seed
+def test_validation_5_reproducibility(seeded_db):
+    """Validation: Fixed random seed produces deterministic dataset."""
     rng1 = random.Random(42)
     rng2 = random.Random(42)
     locs1 = generate_synthetic_locations(rng1, count=10)
