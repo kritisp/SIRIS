@@ -23,7 +23,12 @@ def compute_person_overlap_similarity(
     c1: ExtractedCaseFeatures,
     c2: ExtractedCaseFeatures
 ) -> CaseSimilaritySignal:
-    """Computes person entity overlap signal reusing Step 3C resolution outputs without asserting identity."""
+    """Computes person entity overlap signal reusing Step 3C resolution outputs without asserting identity.
+    
+    When comparing multiple persons across two cases, the engine selects the strongest supported person relationship.
+    Step 3C HIGH_CONFIDENCE_MATCH produces MATCH (1.0).
+    Step 3C POSSIBLE_MATCH produces PARTIAL (0.70) to preserve uncertainty.
+    """
     w = settings.SIM_WEIGHT_PERSON_OVERLAP
     p1_list = c1.entities.persons or []
     p2_list = c2.entities.persons or []
@@ -53,16 +58,16 @@ def compute_person_overlap_similarity(
 
             if res.decision == ResolutionDecision.HIGH_CONFIDENCE_MATCH:
                 score = 1.0
-                ev = [f"Entity-resolution evidence indicates confirmed entity match ({p1.name})"]
-                exp = f"EXACT_RESOLVED_ENTITY (Step 3C score: {res.overall_score:.2f})"
+                ev = [f"Step 3C entity resolution indicates high-confidence entity match ({p1.name})"]
+                exp = f"EXACT_RESOLVED_ENTITY (Step 3C high confidence score: {res.overall_score:.2f})"
                 if score > best_score:
                     best_score, best_status, best_evidence, best_explanation = score, SignalStatus.MATCH, ev, exp
             elif res.decision == ResolutionDecision.POSSIBLE_MATCH:
                 score = 0.70
-                ev = [f"Entity-resolution indicates possible entity match ({p1.name})"]
-                exp = f"STRONG_ENTITY_EVIDENCE (Step 3C score: {res.overall_score:.2f})"
+                ev = [f"Step 3C indicates a possible entity match; identity is not confirmed ({p1.name})"]
+                exp = f"STRONG_ENTITY_EVIDENCE (Step 3C possible match score: {res.overall_score:.2f})"
                 if score > best_score:
-                    best_score, best_status, best_evidence, best_explanation = score, SignalStatus.MATCH, ev, exp
+                    best_score, best_status, best_evidence, best_explanation = score, SignalStatus.PARTIAL, ev, exp
             elif p1.normalized_name and p2.normalized_name and p1.normalized_name == p2.normalized_name:
                 # Name-only match without confirmed DOB/phone evidence is unverified identity (0.35)
                 score = 0.35

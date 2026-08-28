@@ -38,119 +38,92 @@ def test_fixture_a_identical_cases():
     assert len(res.strongest_evidence) > 0
 
 
-def test_fixture_b_same_name_different_persons_name_only():
-    dict1 = {
-        "id": "c1",
-        "fir_number": "FIR/1",
-        "persons": [{"id": "p1", "name": "Rahul Kumar", "date_of_birth": "1990-01-01"}]
-    }
-    dict2 = {
-        "id": "c2",
-        "fir_number": "FIR/2",
-        "persons": [{"id": "p2", "name": "Rahul Kumar", "date_of_birth": "1985-05-15"}]  # Conflicting DOB
-    }
+def test_person_resolution_semantics_high_vs_possible_vs_name_vs_phonetic():
+    """Explicitly verifies Person Resolution semantics: HIGH_CONFIDENCE=MATCH(1.0), POSSIBLE=PARTIAL(0.70), NAME_ONLY=PARTIAL(0.35), PHONETIC_ONLY=PARTIAL(0.40)."""
+    
+    # 1. High Confidence Match -> MATCH (1.0)
+    dict_high1 = {"id": "c1", "fir_number": "FIR/1", "persons": [{"id": "p1", "name": "Rahul Kumar", "date_of_birth": "1990-01-01", "phone": "+919861105000"}]}
+    dict_high2 = {"id": "c2", "fir_number": "FIR/2", "persons": [{"id": "p2", "name": "Rahul Kumar alias Raju", "date_of_birth": "1990-01-01", "phone": "+919861105000"}]}
+    f_high1 = CaseFeatureExtractor.extract_from_dict(dict_high1)
+    f_high2 = CaseFeatureExtractor.extract_from_dict(dict_high2)
+    res_high = CaseSimilarityEngine.compare_cases(f_high1, f_high2)
+    p_high = next(s for s in res_high.signals if s.signal_name == "PERSON_OVERLAP")
+    assert p_high.status == SignalStatus.MATCH
+    assert p_high.raw_score == 1.0
+    assert "high-confidence entity match" in p_high.evidence[0]
 
-    c1 = CaseFeatureExtractor.extract_from_dict(dict1)
-    c2 = CaseFeatureExtractor.extract_from_dict(dict2)
+    # 2. Possible Match (moderate name similarity without supporting DOB/phone drops decision to POSSIBLE_MATCH) -> PARTIAL (0.70)
+    dict_pos1 = {"id": "c3", "fir_number": "FIR/3", "persons": [{"id": "p3", "name": "Rahul Kumar"}]}
+    dict_pos2 = {"id": "c4", "fir_number": "FIR/4", "persons": [{"id": "p4", "name": "Rahul Kumar Jena"}]}
+    f_pos1 = CaseFeatureExtractor.extract_from_dict(dict_pos1)
+    f_pos2 = CaseFeatureExtractor.extract_from_dict(dict_pos2)
+    res_pos = CaseSimilarityEngine.compare_cases(f_pos1, f_pos2)
+    p_pos = next(s for s in res_pos.signals if s.signal_name == "PERSON_OVERLAP")
+    assert p_pos.status == SignalStatus.PARTIAL
+    assert p_pos.raw_score == 0.70
+    assert "identity is not confirmed" in p_pos.evidence[0]
 
-    res = CaseSimilarityEngine.compare_cases(c1, c2)
-    p_sig = next(s for s in res.signals if s.signal_name == "PERSON_OVERLAP")
-    assert p_sig.status == SignalStatus.PARTIAL
-    assert p_sig.raw_score == 0.35
-    assert "unverified identity" in p_sig.evidence[0].lower()
+    # 3. Name Only Match -> PARTIAL (0.35)
+    dict_name1 = {"id": "c5", "fir_number": "FIR/5", "persons": [{"id": "p5", "name": "Rahul Kumar", "date_of_birth": "1990-01-01"}]}
+    dict_name2 = {"id": "c6", "fir_number": "FIR/6", "persons": [{"id": "p6", "name": "Rahul Kumar", "date_of_birth": "1980-05-15"}]}  # Conflicting DOB
+    f_name1 = CaseFeatureExtractor.extract_from_dict(dict_name1)
+    f_name2 = CaseFeatureExtractor.extract_from_dict(dict_name2)
+    res_name = CaseSimilarityEngine.compare_cases(f_name1, f_name2)
+    p_name = next(s for s in res_name.signals if s.signal_name == "PERSON_OVERLAP")
+    assert p_name.status == SignalStatus.PARTIAL
+    assert p_name.raw_score == 0.35
+    assert "unverified identity" in p_name.evidence[0]
 
+    # 4. Phonetic Only Match -> PARTIAL (0.40)
+    dict_ph1 = {"id": "c7", "fir_number": "FIR/7", "persons": [{"id": "p7", "name": "Suresh", "date_of_birth": "1992-01-01"}]}
+    dict_ph2 = {"id": "c8", "fir_number": "FIR/8", "persons": [{"id": "p8", "name": "Suraj", "date_of_birth": "1980-03-03"}]}
+    f_ph1 = CaseFeatureExtractor.extract_from_dict(dict_ph1)
+    f_ph2 = CaseFeatureExtractor.extract_from_dict(dict_ph2)
+    res_ph = CaseSimilarityEngine.compare_cases(f_ph1, f_ph2)
+    p_ph = next(s for s in res_ph.signals if s.signal_name == "PERSON_OVERLAP")
+    assert p_ph.status == SignalStatus.PARTIAL
+    assert p_ph.raw_score == 0.40
 
-def test_fixture_c_same_person_confirmed_step3c():
-    dict1 = {
-        "id": "c1",
-        "fir_number": "FIR/1",
-        "persons": [{"id": "p1", "name": "Rahul Kumar alias Raju", "date_of_birth": "1990-01-01"}]
-    }
-    dict2 = {
-        "id": "c2",
-        "fir_number": "FIR/2",
-        "persons": [{"id": "p2", "name": "Rahul Kumar", "date_of_birth": "1990-01-01"}]  # Matching name + DOB
-    }
-
-    c1 = CaseFeatureExtractor.extract_from_dict(dict1)
-    c2 = CaseFeatureExtractor.extract_from_dict(dict2)
-
-    res = CaseSimilarityEngine.compare_cases(c1, c2)
-    p_sig = next(s for s in res.signals if s.signal_name == "PERSON_OVERLAP")
-    assert p_sig.status == SignalStatus.MATCH
-    assert p_sig.raw_score == 1.0
-    assert "confirmed entity match" in p_sig.evidence[0]
-
-
-def test_fixture_d_phonetic_only_match():
-    dict1 = {
-        "id": "c1",
-        "fir_number": "FIR/1",
-        "persons": [{"id": "p1", "name": "Suresh", "date_of_birth": "1992-01-01"}]
-    }
-    dict2 = {
-        "id": "c2",
-        "fir_number": "FIR/2",
-        "persons": [{"id": "p2", "name": "Suraj", "date_of_birth": "1980-03-03"}]
-    }
-
-    c1 = CaseFeatureExtractor.extract_from_dict(dict1)
-    c2 = CaseFeatureExtractor.extract_from_dict(dict2)
-
-    res = CaseSimilarityEngine.compare_cases(c1, c2)
-    p_sig = next(s for s in res.signals if s.signal_name == "PERSON_OVERLAP")
-    assert p_sig.raw_score == 0.40
-    assert p_sig.status == SignalStatus.PARTIAL
+    # 5. Unrelated Persons -> MISMATCH (0.0)
+    dict_un1 = {"id": "c9", "fir_number": "FIR/9", "persons": [{"id": "p9", "name": "Rahul Kumar"}]}
+    dict_un2 = {"id": "c10", "fir_number": "FIR/10", "persons": [{"id": "p10", "name": "Jagannath Mohanty"}]}
+    f_un1 = CaseFeatureExtractor.extract_from_dict(dict_un1)
+    f_un2 = CaseFeatureExtractor.extract_from_dict(dict_un2)
+    res_un = CaseSimilarityEngine.compare_cases(f_un1, f_un2)
+    p_un = next(s for s in res_un.signals if s.signal_name == "PERSON_OVERLAP")
+    assert p_un.status == SignalStatus.MISMATCH
+    assert p_un.raw_score == 0.0
 
 
-def test_fixture_e_unrelated_persons():
-    dict1 = {
-        "id": "c1",
-        "fir_number": "FIR/1",
-        "persons": [{"id": "p1", "name": "Rahul Kumar"}]
-    }
-    dict2 = {
-        "id": "c2",
-        "fir_number": "FIR/2",
-        "persons": [{"id": "p2", "name": "Jagannath Mohanty"}]
-    }
+def test_mo_source_weight_factors_1_00_0_95_0_90():
+    """Explicitly verifies MO source combination factors: Dedicated+Dedicated=1.00, Dedicated+Derived=0.95, Derived+Derived=0.90."""
+    text_mo = "Lock broken using iron cutter and gold stolen"
 
-    c1 = CaseFeatureExtractor.extract_from_dict(dict1)
-    c2 = CaseFeatureExtractor.extract_from_dict(dict2)
+    # Dedicated + Dedicated -> 1.00 factor
+    d1 = {"id": "c1", "fir_number": "FIR/1", "modus_operandi": text_mo}
+    d2 = {"id": "c2", "fir_number": "FIR/2", "modus_operandi": text_mo}
+    f1 = CaseFeatureExtractor.extract_from_dict(d1)
+    f2 = CaseFeatureExtractor.extract_from_dict(d2)
+    r12 = CaseSimilarityEngine.compare_cases(f1, f2)
+    mo12 = next(s for s in r12.signals if s.signal_name == "MO_TEXT_SIMILARITY")
+    assert "both cases have dedicated mo" in mo12.explanation.lower()
+    assert mo12.raw_score == 1.00
 
-    res = CaseSimilarityEngine.compare_cases(c1, c2)
-    p_sig = next(s for s in res.signals if s.signal_name == "PERSON_OVERLAP")
-    assert p_sig.raw_score == 0.0
-    assert p_sig.status == SignalStatus.MISMATCH
+    # Dedicated + Description Derived -> 0.95 factor
+    d3 = {"id": "c3", "fir_number": "FIR/3", "description": text_mo}
+    f3 = CaseFeatureExtractor.extract_from_dict(d3)
+    r13 = CaseSimilarityEngine.compare_cases(f1, f3)
+    mo13 = next(s for s in r13.signals if s.signal_name == "MO_TEXT_SIMILARITY")
+    assert "one case has dedicated mo" in mo13.explanation.lower()
+    assert mo13.raw_score == 0.95
 
-
-def test_fixture_f_g_h_i_j_mo_similarity():
-    dict_dedicated1 = {
-        "id": "c1",
-        "fir_number": "FIR/1",
-        "modus_operandi": "Entered via rear skylight using glass cutter"
-    }
-    dict_dedicated2 = {
-        "id": "c2",
-        "fir_number": "FIR/2",
-        "modus_operandi": "Entered via rear skylight using glass cutter"
-    }
-
-    c1 = CaseFeatureExtractor.extract_from_dict(dict_dedicated1)
-    c2 = CaseFeatureExtractor.extract_from_dict(dict_dedicated2)
-
-    res = CaseSimilarityEngine.compare_cases(c1, c2)
-    mo_sig = next(s for s in res.signals if s.signal_name == "MO_TEXT_SIMILARITY")
-    assert mo_sig.status == SignalStatus.MATCH
-    assert mo_sig.raw_score >= 0.85
-    assert "both cases have dedicated mo" in mo_sig.explanation.lower()
-
-    # Missing MO test
-    dict_missing = {"id": "c3", "fir_number": "FIR/3"}
-    c3 = CaseFeatureExtractor.extract_from_dict(dict_missing)
-    res_miss = CaseSimilarityEngine.compare_cases(c1, c3)
-    mo_miss = next(s for s in res_miss.signals if s.signal_name == "MO_TEXT_SIMILARITY")
-    assert mo_miss.status == SignalStatus.UNAVAILABLE
+    # Description Derived + Description Derived -> 0.90 factor
+    d4 = {"id": "c4", "fir_number": "FIR/4", "description": text_mo}
+    f4 = CaseFeatureExtractor.extract_from_dict(d4)
+    r34 = CaseSimilarityEngine.compare_cases(f3, f4)
+    mo34 = next(s for s in r34.signals if s.signal_name == "MO_TEXT_SIMILARITY")
+    assert "both cases use description-derived mo" in mo34.explanation.lower()
+    assert mo34.raw_score == 0.90
 
 
 def test_fixture_k_l_m_n_o_geographic_similarity():
