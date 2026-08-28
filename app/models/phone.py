@@ -1,9 +1,8 @@
 import uuid
 from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import ForeignKey, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, GUID
 
 if TYPE_CHECKING:
     from app.models.case import Case
@@ -14,7 +13,7 @@ class Phone(Base, TimestampMixin):
     __tablename__ = "phones"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )
@@ -39,18 +38,18 @@ class PersonPhone(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )
     person_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("persons.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
     phone_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("phones.id", ondelete="CASCADE"),
         nullable=False,
         index=True
@@ -68,18 +67,18 @@ class CasePhone(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )
     case_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("cases.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
     phone_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("phones.id", ondelete="CASCADE"),
         nullable=False,
         index=True

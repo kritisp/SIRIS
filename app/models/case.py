@@ -2,20 +2,8 @@ import uuid
 from datetime import date, time
 from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import Date, ForeignKey, Index, String, Text, Time
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base, TimestampMixin
-
-if TYPE_CHECKING:
-    from app.models.chargesheet import Chargesheet
-    from app.models.evidence import Evidence
-    from app.models.investigation_event import InvestigationEvent
-    from app.models.legal_section import CaseLegalSection
-    from app.models.location import Location
-    from app.models.person import CasePerson
-    from app.models.phone import CasePhone
-    from app.models.vehicle import CaseVehicle
-
+from app.models.base import Base, TimestampMixin, GUID
 
 class Case(Base, TimestampMixin):
     __tablename__ = "cases"
@@ -30,7 +18,7 @@ class Case(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )
@@ -52,7 +40,7 @@ class Case(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(50), default="UNDER_INVESTIGATION", nullable=False)
 
     location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("locations.id", ondelete="SET NULL"),
         nullable=True,
         index=True

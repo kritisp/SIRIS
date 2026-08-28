@@ -5,6 +5,12 @@ from app.services.relationship_engine.models import (
     CaseRelationshipAnalysis,
 )
 from app.services.relationship_engine.engine import RelationshipSignalEngine
+from app.services.relationship_engine.confidence import (
+    RelationshipConfidenceLevel,
+    SignalFamily,
+    RelationshipConfidenceAssessment,
+    RelationshipConfidenceEngine,
+)
 
 __all__ = [
     "RelationshipType",
@@ -12,4 +18,8 @@ __all__ = [
     "RelationshipSignal",
     "CaseRelationshipAnalysis",
     "RelationshipSignalEngine",
+    "RelationshipConfidenceLevel",
+    "SignalFamily",
+    "RelationshipConfidenceAssessment",
+    "RelationshipConfidenceEngine",
 ]

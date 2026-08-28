@@ -1,9 +1,8 @@
 import uuid
 from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import Float, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, GUID
 
 if TYPE_CHECKING:
     from app.models.case import Case
@@ -13,7 +12,7 @@ class Location(Base, TimestampMixin):
     __tablename__ = "locations"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )

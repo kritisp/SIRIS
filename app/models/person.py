@@ -3,9 +3,8 @@ import uuid
 from datetime import date
 from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import Date, Enum, ForeignKey, String, Text, UniqueConstraint, Index
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, GUID
 
 if TYPE_CHECKING:
     from app.models.case import Case
@@ -25,7 +24,7 @@ class Person(Base, TimestampMixin):
     __tablename__ = "persons"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )
@@ -52,18 +51,18 @@ class CasePerson(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )
     case_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("cases.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
     person_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("persons.id", ondelete="CASCADE"),
         nullable=False,
         index=True

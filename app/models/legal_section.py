@@ -1,9 +1,8 @@
 import uuid
 from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, GUID
 
 if TYPE_CHECKING:
     from app.models.case import Case
@@ -13,7 +12,7 @@ class LegalSection(Base, TimestampMixin):
     __tablename__ = "legal_sections"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )
@@ -35,18 +34,18 @@ class CaseLegalSection(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         primary_key=True,
         default=uuid.uuid4
     )
     case_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("cases.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
     legal_section_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("legal_sections.id", ondelete="CASCADE"),
         nullable=False,
         index=True

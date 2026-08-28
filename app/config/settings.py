@@ -46,6 +46,23 @@ class Settings(BaseSettings):
     THRESHOLD_HIGH_SIMILARITY: float = 0.75
     THRESHOLD_MODERATE_SIMILARITY: float = 0.50
 
+    # Step 5B Evidentiary Contribution Weights
+    REL_WEIGHT_SHARED_HIGH_CONFIDENCE_PERSON: float = 1.00
+    REL_WEIGHT_SHARED_PHONE: float = 0.90
+    REL_WEIGHT_SHARED_VEHICLE: float = 0.85
+    REL_WEIGHT_SHARED_LOCATION: float = 0.50
+    REL_WEIGHT_SIMILAR_MODUS_OPERANDI: float = 0.60
+    REL_WEIGHT_SIMILAR_CRIME_CATEGORY: float = 0.25
+    REL_WEIGHT_SIMILAR_LEGAL_SECTIONS: float = 0.15
+    REL_WEIGHT_TEMPORAL_PROXIMITY: float = 0.35
+    REL_WEIGHT_POSSIBLE_PERSON_RELATIONSHIP: float = 0.45
+
+    # Step 5B Relationship Confidence Thresholds
+    REL_THRESH_VERY_HIGH: float = 0.85
+    REL_THRESH_HIGH: float = 0.70
+    REL_THRESH_MODERATE: float = 0.50
+    REL_THRESH_LOW: float = 0.25
+
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         url = self.DATABASE_URL or "postgresql://postgres:password@localhost:5432/postgres"
