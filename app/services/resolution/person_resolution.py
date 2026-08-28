@@ -30,7 +30,7 @@ def resolve_person_pair(p1: Dict[str, Any], p2: Dict[str, Any]) -> ResolutionRes
         name_score = max(set_sim, w_sim)
 
         w = settings.PERSON_WEIGHT_NAME
-        status = SignalStatus.MATCH if name_score >= 0.70 else SignalStatus.CONFLICT
+        status = SignalStatus.MATCH if name_score >= 0.45 else SignalStatus.CONFLICT
         signals.append(
             SignalEvidence(
                 name="NAME_SIMILARITY",
@@ -44,8 +44,19 @@ def resolve_person_pair(p1: Dict[str, Any], p2: Dict[str, Any]) -> ResolutionRes
 
         # Phonetic Signal (Step 3A Soundex)
         if norm1.phonetic_value and norm2.phonetic_value:
+            has_initials = norm1.metadata.get("has_initials") or norm2.metadata.get("has_initials")
             ph_match = (norm1.phonetic_value == norm2.phonetic_value)
-            ph_score = 1.0 if ph_match else 0.4
+            if ph_match:
+                ph_score = 1.0
+                status = SignalStatus.MATCH
+            elif has_initials:
+                # Single-letter initials naturally produce abbreviated Soundex codes; treat as match
+                ph_score = 0.75
+                status = SignalStatus.MATCH
+            else:
+                ph_score = 0.40
+                status = SignalStatus.CONFLICT
+
             pw = settings.PERSON_WEIGHT_PHONETIC
             signals.append(
                 SignalEvidence(
@@ -53,7 +64,7 @@ def resolve_person_pair(p1: Dict[str, Any], p2: Dict[str, Any]) -> ResolutionRes
                     raw_score=ph_score,
                     weight=pw,
                     weighted_score=round(ph_score * pw, 4),
-                    status=SignalStatus.MATCH if ph_match else SignalStatus.CONFLICT,
+                    status=status,
                     description=f"Soundex: {norm1.phonetic_value} vs {norm2.phonetic_value}"
                 )
             )

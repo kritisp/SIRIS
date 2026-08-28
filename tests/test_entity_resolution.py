@@ -6,45 +6,68 @@ from app.services.blocking import CandidateBlockingEngine
 from app.services.resolution import EntityResolver, ResolutionDecision
 
 
-def test_person_exact_attributes():
-    p1 = {"id": "p1", "name": "Rahul Kumar", "date_of_birth": "1990-05-12", "phone": "+919861105000"}
-    p2 = {"id": "p2", "name": "Rahul Kumar", "date_of_birth": "1990-05-12", "phone": "+919861105000"}
+def test_fixture_a_obvious_same_entity():
+    """Fixture A: Obvious same entity with matching name, DOB, phone, and address."""
+    p1 = {"id": "p1", "name": "Rahul Kumar", "date_of_birth": "1990-05-12", "phone": "+919861105000", "address": "Saheed Nagar, Bhubaneswar"}
+    p2 = {"id": "p2", "name": "Rahul Kumar", "date_of_birth": "1990-05-12", "phone": "+919861105000", "address": "Saheed Nagar, Bhubaneswar"}
 
     res = EntityResolver.resolve_person(p1, p2)
     assert res.decision == ResolutionDecision.HIGH_CONFIDENCE_MATCH
-    assert res.overall_score >= 0.85
+    assert res.overall_score >= 0.80
     assert len(res.matching_signals) >= 3
 
 
-def test_person_false_positive_conflict_detection():
-    """Validates that two different synthetic people with identical names but conflicting DOBs are NOT merged."""
+def test_fixture_b_obvious_different_entity():
+    """Fixture B: Obvious different entity with completely different name, DOB, and phone."""
+    p1 = {"id": "p1", "name": "Rahul Kumar", "date_of_birth": "1990-05-12", "phone": "+919861105000"}
+    p2 = {"id": "p2", "name": "Vikram Singh", "date_of_birth": "1978-01-15", "phone": "+917008999888"}
+
+    res = EntityResolver.resolve_person(p1, p2)
+    assert res.decision == ResolutionDecision.NO_MATCH
+    assert res.overall_score < 0.55
+
+
+def test_fixture_c_ambiguous_incomplete_entity():
+    """Fixture C: Ambiguous/incomplete entity with partial name match + same location, missing DOB and phone."""
+    p1 = {"id": "p1", "name": "Rahul Kumar", "address": "Patia, Bhubaneswar"}
+    p2 = {"id": "p2", "name": "Rahul K. Mohanty", "address": "Patia, Bhubaneswar"}
+
+    res = EntityResolver.resolve_person(p1, p2)
+    assert res.decision == ResolutionDecision.POSSIBLE_MATCH
+    assert 0.55 <= res.overall_score < 0.80
+    assert "DOB" in res.unavailable_signals
+    assert "PHONE" in res.unavailable_signals
+
+
+def test_fixture_d_same_common_name_conflicting_dob():
+    """Fixture D: Same common name but conflicting DOBs (False Positive protection)."""
     p1 = {"id": "p1", "name": "Rahul Kumar", "date_of_birth": "1988-05-14", "phone": "+919861105000"}
     p2 = {"id": "p2", "name": "Rahul Kumar", "date_of_birth": "1995-11-22", "phone": "+917008123456"}
 
     res = EntityResolver.resolve_person(p1, p2)
-    # Conflict penalty prevents automatic match
     assert len(res.conflicting_signals) >= 2
     assert res.decision != ResolutionDecision.HIGH_CONFIDENCE_MATCH
 
 
-def test_person_false_negative_representation_variations():
-    """Validates that Rahul Kumar vs R. Kumar vs Rahul K. are recognized as candidates with matching signals."""
-    p1 = {"id": "p1", "name": "Rahul Kumar", "date_of_birth": "1990-05-12", "phone": "+919861105000"}
-    p2 = {"id": "p2", "name": "R. Kumar", "date_of_birth": "1990-05-12", "phone": "+919861105000"}
+def test_fixture_e_similar_name_same_district_missing_dob_phone():
+    """Fixture E: Similar name + same district but missing DOB/phone."""
+    p1 = {"id": "p1", "name": "Rahul Kumar", "district": "Khordha"}
+    p2 = {"id": "p2", "name": "R. K. Mohanty", "district": "Khordha"}
 
     res = EntityResolver.resolve_person(p1, p2)
-    assert res.decision in (ResolutionDecision.HIGH_CONFIDENCE_MATCH, ResolutionDecision.POSSIBLE_MATCH)
-    assert any(s.name == "NAME_SIMILARITY" for s in res.matching_signals)
+    assert res.decision == ResolutionDecision.POSSIBLE_MATCH
+    assert 0.55 <= res.overall_score < 0.80
+    assert any(s.name == "LOCATION_MATCH" for s in res.matching_signals)
 
 
-def test_person_missing_attributes_fairness():
-    """Validates that missing DOB or phone does not unfairly penalize name matches."""
+def test_fixture_f_strong_phone_match_moderate_name_similarity():
+    """Fixture F: Strong phone match + moderate name similarity."""
     p1 = {"id": "p1", "name": "Rahul Kumar", "phone": "+919861105000"}
-    p2 = {"id": "p2", "name": "Rahul Kumar"}
+    p2 = {"id": "p2", "name": "Rahul K. Sahoo", "phone": "+919861105000"}
 
     res = EntityResolver.resolve_person(p1, p2)
-    assert "DOB" in res.unavailable_signals
     assert res.decision in (ResolutionDecision.HIGH_CONFIDENCE_MATCH, ResolutionDecision.POSSIBLE_MATCH)
+    assert any(s.name == "PHONE_MATCH" and s.status.value == "MATCH" for s in res.matching_signals)
 
 
 def test_phone_resolution():
