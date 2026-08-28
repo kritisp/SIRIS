@@ -18,6 +18,18 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = "siris_password"
 
+    # Entity Resolution Scoring Weights
+    PERSON_WEIGHT_NAME: float = 0.30
+    PERSON_WEIGHT_PHONETIC: float = 0.15
+    PERSON_WEIGHT_DOB: float = 0.20
+    PERSON_WEIGHT_PHONE: float = 0.20
+    PERSON_WEIGHT_VEHICLE: float = 0.10
+    PERSON_WEIGHT_LOCATION: float = 0.05
+
+    # Decision Thresholds
+    THRESHOLD_HIGH_CONFIDENCE: float = 0.80
+    THRESHOLD_POSSIBLE_MATCH: float = 0.55
+
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         url = self.DATABASE_URL or "postgresql://postgres:password@localhost:5432/postgres"
