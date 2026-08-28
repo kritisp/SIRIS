@@ -118,6 +118,7 @@ def upgrade() -> None:
         'cases',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('fir_number', sa.String(length=100), nullable=False, unique=True),
+        sa.Column('station_id', sa.String(length=100), server_default='PS_BBSR_001', nullable=False),
         sa.Column('police_station', sa.String(length=150), nullable=False),
         sa.Column('district', sa.String(length=150), nullable=False),
         sa.Column('state', sa.String(length=100), nullable=False),
@@ -133,6 +134,7 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     )
     op.create_index('ix_cases_fir_number', 'cases', ['fir_number'])
+    op.create_index('ix_cases_station_id', 'cases', ['station_id'])
     op.create_index('ix_cases_crime_type', 'cases', ['crime_type'])
     op.create_index('ix_cases_crime_category', 'cases', ['crime_category'])
     op.create_index('ix_cases_registration_date', 'cases', ['registration_date'])

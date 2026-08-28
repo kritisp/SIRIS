@@ -37,6 +37,9 @@ class Case(Base, TimestampMixin):
     fir_number: Mapped[str] = mapped_column(
         String(100), unique=True, nullable=False
     )
+    station_id: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="PS_BBSR_001", index=True
+    )
     police_station: Mapped[str] = mapped_column(String(150), nullable=False)
     district: Mapped[str] = mapped_column(String(150), nullable=False)
     state: Mapped[str] = mapped_column(String(100), nullable=False)
