@@ -1,6 +1,11 @@
 from typing import List, Tuple
 from app.config.settings import settings
-from app.services.relationship_engine.models import RelationshipSignal, RelationshipType, SignalCertainty
+from app.services.relationship_engine.models import (
+    RelationshipSignal,
+    RelationshipType,
+    SignalCertainty,
+    get_canonical_relationship_key,
+)
 from app.services.relationship_engine.confidence.family_grouping import (
     get_signal_base_weight,
     group_signals_by_family,
@@ -19,11 +24,14 @@ def aggregate_relationship_confidence(
 ) -> RelationshipConfidenceAssessment:
     """Aggregates Step 5A relationship signals into an evidence-backed relationship confidence assessment."""
 
+    key = get_canonical_relationship_key(source_case_id, target_case_id)
+
     # 1. Handle Self-Comparison
     if source_case_id == target_case_id:
         return RelationshipConfidenceAssessment(
             source_case_id=source_case_id,
             target_case_id=target_case_id,
+            canonical_relationship_key=key,
             confidence_score=1.0,
             confidence_level=RelationshipConfidenceLevel.SELF_COMPARISON,
             contributing_signals=signals,
@@ -31,7 +39,8 @@ def aggregate_relationship_confidence(
             explanation="SELF_COMPARISON (Score: 1.00). Source and target case are identical.",
             uncertainty_notes=[],
             provenance="Step 5A Relationship Signals",
-            methodology_version="relationship-confidence-v1"
+            methodology_version="relationship-confidence-v1",
+            projection_version="graph-v1"
         )
 
     # 2. Handle Empty / No Signals
@@ -39,6 +48,7 @@ def aggregate_relationship_confidence(
         return RelationshipConfidenceAssessment(
             source_case_id=source_case_id,
             target_case_id=target_case_id,
+            canonical_relationship_key=key,
             confidence_score=0.0,
             confidence_level=RelationshipConfidenceLevel.INSUFFICIENT_DATA,
             contributing_signals=[],
@@ -46,10 +56,11 @@ def aggregate_relationship_confidence(
             explanation="INSUFFICIENT_DATA (Score: 0.00). No evidence signals connect these case records.",
             uncertainty_notes=["Insufficient evidentiary connections between cases."],
             provenance="Step 5A Relationship Signals",
-            methodology_version="relationship-confidence-v1"
+            methodology_version="relationship-confidence-v1",
+            projection_version="graph-v1"
         )
 
-    # 3. Categorize Signals by Certainty
+    # 3. Categorize Signals by Certainty Taxonomy
     high_sigs: List[RelationshipSignal] = []
     poss_sigs: List[RelationshipSignal] = []
     weak_sigs: List[RelationshipSignal] = []
@@ -57,9 +68,9 @@ def aggregate_relationship_confidence(
     conflict_notes: List[str] = []
 
     for s in signals:
-        if s.certainty == SignalCertainty.HIGH_CONFIDENCE:
+        if s.certainty in (SignalCertainty.HIGH_CONFIDENCE_ENTITY, SignalCertainty.EXACT_ATTRIBUTE_MATCH):
             high_sigs.append(s)
-        elif s.certainty == SignalCertainty.POSSIBLE:
+        elif s.certainty in (SignalCertainty.POSSIBLE_ENTITY, SignalCertainty.CORRELATIONAL, SignalCertainty.INFERRED_PATTERN, SignalCertainty.CONTEXTUAL):
             poss_sigs.append(s)
         else:
             weak_sigs.append(s)
@@ -71,7 +82,6 @@ def aggregate_relationship_confidence(
     grouped = group_signals_by_family(signals)
     contributing_families = sorted(list(grouped.keys()), key=lambda f: f.value)
 
-    # Find maximum primary family contribution to establish base evidence strength
     family_scores: List[float] = []
     for fam, items in grouped.items():
         fam_sum = 0.0
@@ -84,7 +94,6 @@ def aggregate_relationship_confidence(
     primary_family_score = family_scores[0] if family_scores else 0.0
     secondary_family_score_sum = sum(family_scores[1:]) if len(family_scores) > 1 else 0.0
 
-    # Base score combines primary family strength + discounted secondary families
     base_score = 0.70 * primary_family_score + 0.30 * secondary_family_score_sum
 
     # 5. Independent Family Bonus (Rewards corroboration across distinct evidence categories)
@@ -134,9 +143,9 @@ def aggregate_relationship_confidence(
     # 9. Generate Deterministic Summary & Explanation
     ev_summary_parts = []
     if high_sigs:
-        ev_summary_parts.append(f"{len(high_sigs)} high-confidence signal(s)")
+        ev_summary_parts.append(f"{len(high_sigs)} high-confidence/exact signal(s)")
     if poss_sigs:
-        ev_summary_parts.append(f"{len(poss_sigs)} possible signal(s)")
+        ev_summary_parts.append(f"{len(poss_sigs)} possible/pattern signal(s)")
     if weak_sigs:
         ev_summary_parts.append(f"{len(weak_sigs)} weak signal(s)")
 
@@ -152,6 +161,7 @@ def aggregate_relationship_confidence(
     return RelationshipConfidenceAssessment(
         source_case_id=source_case_id,
         target_case_id=target_case_id,
+        canonical_relationship_key=key,
         confidence_score=final_score,
         confidence_level=level,
         contributing_signals=signals,
@@ -164,5 +174,6 @@ def aggregate_relationship_confidence(
         explanation=explanation,
         uncertainty_notes=list(set(uncertainty_notes)),
         provenance="Step 5A Relationship Signals",
-        methodology_version="relationship-confidence-v1"
+        methodology_version="relationship-confidence-v1",
+        projection_version="graph-v1"
     )

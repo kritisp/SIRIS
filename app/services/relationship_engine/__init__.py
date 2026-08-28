@@ -3,6 +3,7 @@ from app.services.relationship_engine.models import (
     SignalCertainty,
     RelationshipSignal,
     CaseRelationshipAnalysis,
+    get_canonical_relationship_key,
 )
 from app.services.relationship_engine.engine import RelationshipSignalEngine
 from app.services.relationship_engine.confidence import (
@@ -17,6 +18,7 @@ __all__ = [
     "SignalCertainty",
     "RelationshipSignal",
     "CaseRelationshipAnalysis",
+    "get_canonical_relationship_key",
     "RelationshipSignalEngine",
     "RelationshipConfidenceLevel",
     "SignalFamily",

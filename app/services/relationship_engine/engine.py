@@ -9,6 +9,7 @@ from app.services.relationship_engine.case_relationships import (
 from app.services.relationship_engine.models import (
     CaseRelationshipAnalysis,
     RelationshipSignal,
+    get_canonical_relationship_key,
 )
 from app.services.relationship_engine.person_relationships import (
     extract_person_relationship_signals,
@@ -27,12 +28,14 @@ class RelationshipSignalEngine:
         """Extracts all discrete relationship signals between two extracted case feature objects."""
         src_id = c1.identity.case_id
         tgt_id = c2.identity.case_id
+        key = get_canonical_relationship_key(src_id, tgt_id)
 
         # Self Comparison Guard
         if src_id == tgt_id:
             return CaseRelationshipAnalysis(
                 source_case_id=src_id,
                 target_case_id=tgt_id,
+                canonical_relationship_key=key,
                 signals=[],
                 summary_explanation="Self-comparison: Identical case record."
             )
@@ -57,6 +60,7 @@ class RelationshipSignalEngine:
         return CaseRelationshipAnalysis(
             source_case_id=src_id,
             target_case_id=tgt_id,
+            canonical_relationship_key=key,
             signals=signals,
             summary_explanation=summary
         )

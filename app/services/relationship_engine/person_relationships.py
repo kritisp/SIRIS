@@ -4,6 +4,7 @@ from app.services.relationship_engine.models import (
     RelationshipSignal,
     RelationshipType,
     SignalCertainty,
+    get_canonical_relationship_key,
 )
 from app.services.resolution.models import ResolutionDecision
 from app.services.resolution.person_resolution import resolve_person_pair
@@ -28,6 +29,7 @@ def extract_person_relationship_signals(
     """Extracts person relationship signals using Step 3C Entity Resolution outputs."""
     src_id = c1.identity.case_id
     tgt_id = c2.identity.case_id
+    key = get_canonical_relationship_key(src_id, tgt_id)
     p1_list = c1.entities.persons or []
     p2_list = c2.entities.persons or []
 
@@ -48,9 +50,10 @@ def extract_person_relationship_signals(
                         relationship_type=RelationshipType.SHARED_HIGH_CONFIDENCE_PERSON,
                         source_case_id=src_id,
                         target_case_id=tgt_id,
+                        canonical_relationship_key=key,
                         raw_score=1.0,
-                        certainty=SignalCertainty.HIGH_CONFIDENCE,
-                        evidence=[f"Step 3C high-confidence person match: {p1.name} <-> {p2.name}"],
+                        certainty=SignalCertainty.HIGH_CONFIDENCE_ENTITY,
+                        evidence=[f"Step 3C high-confidence person match: {p1.name} [person_id: {p1.person_id}] <-> {p2.name} [person_id: {p2.person_id}]"],
                         explanation=f"Strong entity resolution evidence indicates confirmed person match ({p1.name}).",
                         supporting_entity_ids=[p1.person_id, p2.person_id],
                         provenance="Step 3C Entity Resolution",
@@ -63,9 +66,10 @@ def extract_person_relationship_signals(
                         relationship_type=RelationshipType.POSSIBLE_PERSON_RELATIONSHIP,
                         source_case_id=src_id,
                         target_case_id=tgt_id,
+                        canonical_relationship_key=key,
                         raw_score=0.70,
-                        certainty=SignalCertainty.POSSIBLE,
-                        evidence=[f"Step 3C indicates a possible person match: {p1.name} <-> {p2.name}"],
+                        certainty=SignalCertainty.POSSIBLE_ENTITY,
+                        evidence=[f"Step 3C indicates a possible person match: {p1.name} [person_id: {p1.person_id}] <-> {p2.name} [person_id: {p2.person_id}]"],
                         explanation=f"Possible person relationship indicated by Step 3C resolution ({res.overall_score:.2f}).",
                         supporting_entity_ids=[p1.person_id, p2.person_id],
                         provenance="Step 3C Entity Resolution",
@@ -78,9 +82,10 @@ def extract_person_relationship_signals(
                         relationship_type=RelationshipType.POSSIBLE_PERSON_RELATIONSHIP,
                         source_case_id=src_id,
                         target_case_id=tgt_id,
+                        canonical_relationship_key=key,
                         raw_score=0.35,
                         certainty=SignalCertainty.WEAK_UNVERIFIED,
-                        evidence=[f"Matching normalized person name (unverified identity): {p1.name}"],
+                        evidence=[f"Matching normalized person name (unverified identity): {p1.name} [person_id: {p1.person_id}]"],
                         explanation=f"Name-only match across cases ({p1.normalized_name}).",
                         supporting_entity_ids=[p1.person_id, p2.person_id],
                         provenance="Step 3A Person Normalization",
@@ -93,9 +98,10 @@ def extract_person_relationship_signals(
                         relationship_type=RelationshipType.POSSIBLE_PERSON_RELATIONSHIP,
                         source_case_id=src_id,
                         target_case_id=tgt_id,
+                        canonical_relationship_key=key,
                         raw_score=0.40,
                         certainty=SignalCertainty.WEAK_UNVERIFIED,
-                        evidence=[f"Phonetic Soundex name code overlap: {p1.phonetic_name}"],
+                        evidence=[f"Phonetic Soundex name code overlap: {p1.phonetic_name} [person_id: {p1.person_id}]"],
                         explanation=f"Phonetic name overlap code ({p1.phonetic_name}).",
                         supporting_entity_ids=[p1.person_id, p2.person_id],
                         provenance="Step 3A Soundex Normalization",

@@ -27,6 +27,7 @@ class RelationshipConfidenceAssessment(BaseModel):
     """Aggregated, evidence-backed relationship confidence assessment between two cases emitted by Step 5B."""
     source_case_id: str
     target_case_id: str
+    canonical_relationship_key: str
     confidence_score: float = Field(ge=0.0, le=1.0)
     confidence_level: RelationshipConfidenceLevel
     contributing_signals: List[RelationshipSignal] = Field(default_factory=list)
@@ -40,3 +41,4 @@ class RelationshipConfidenceAssessment(BaseModel):
     uncertainty_notes: List[str] = Field(default_factory=list)
     provenance: str = "Step 5A Relationship Signals"
     methodology_version: str = "relationship-confidence-v1"
+    projection_version: str = "graph-v1"

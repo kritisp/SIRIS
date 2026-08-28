@@ -103,7 +103,7 @@ def test_scenario_n_o_p_q_determinism_and_provenance():
     assert a1.model_dump() == a2.model_dump()
     assert a1.signals[0].provenance == "Step 3A Phone Normalization"
     assert a1.signals[0].uncertainty_note is not None
-    assert "does not automatically establish criminal association" in a1.signals[0].uncertainty_note
+    assert "criminal association" in a1.signals[0].uncertainty_note
 
 
 def test_live_supabase_relationship_signal_engine_benchmark():

@@ -8,6 +8,7 @@ from app.services.relationship_engine.models import (
     RelationshipSignal,
     RelationshipType,
     SignalCertainty,
+    get_canonical_relationship_key,
 )
 
 
@@ -18,6 +19,7 @@ def extract_attribute_relationship_signals(
     """Extracts shared phone, shared vehicle, and shared location attribute relationship signals."""
     src_id = c1.identity.case_id
     tgt_id = c2.identity.case_id
+    key = get_canonical_relationship_key(src_id, tgt_id)
     signals: List[RelationshipSignal] = []
 
     # 1. SHARED_PHONE Signal
@@ -34,13 +36,14 @@ def extract_attribute_relationship_signals(
                 relationship_type=RelationshipType.SHARED_PHONE,
                 source_case_id=src_id,
                 target_case_id=tgt_id,
+                canonical_relationship_key=key,
                 raw_score=1.0,
-                certainty=SignalCertainty.HIGH_CONFIDENCE,
-                evidence=[f"Same normalized E.164 phone number: {num}"],
-                explanation=f"Exact phone number overlap ({num}).",
+                certainty=SignalCertainty.EXACT_ATTRIBUTE_MATCH,
+                evidence=[f"Same normalized E.164 phone number: {num} [phone_id: {ph1_dict[num]}]"],
+                explanation=f"Exact phone number attribute overlap ({num}).",
                 supporting_entity_ids=[ph1_dict[num], ph2_dict[num]],
                 provenance="Step 3A Phone Normalization",
-                uncertainty_note="Shared phone number attribute evidence; does not automatically establish criminal association."
+                uncertainty_note="Exact normalized phone attribute match; does not establish person identity, ownership, or criminal association."
             )
         )
 
@@ -58,13 +61,14 @@ def extract_attribute_relationship_signals(
                 relationship_type=RelationshipType.SHARED_VEHICLE,
                 source_case_id=src_id,
                 target_case_id=tgt_id,
+                canonical_relationship_key=key,
                 raw_score=1.0,
-                certainty=SignalCertainty.HIGH_CONFIDENCE,
-                evidence=[f"Same normalized vehicle registration: {reg}"],
-                explanation=f"Exact vehicle registration overlap ({reg}).",
+                certainty=SignalCertainty.EXACT_ATTRIBUTE_MATCH,
+                evidence=[f"Same normalized vehicle registration: {reg} [vehicle_id: {v1_dict[reg]}]"],
+                explanation=f"Exact vehicle registration attribute overlap ({reg}).",
                 supporting_entity_ids=[v1_dict[reg], v2_dict[reg]],
                 provenance="Step 3A Vehicle Normalization",
-                uncertainty_note="Shared vehicle attribute evidence; does not prove vehicle ownership or criminal intent."
+                uncertainty_note="Exact normalized vehicle registration match; does not establish ownership, possession, or criminal association."
             )
         )
 
@@ -80,13 +84,14 @@ def extract_attribute_relationship_signals(
                     relationship_type=RelationshipType.SHARED_LOCATION,
                     source_case_id=src_id,
                     target_case_id=tgt_id,
+                    canonical_relationship_key=key,
                     raw_score=1.0,
-                    certainty=SignalCertainty.HIGH_CONFIDENCE,
+                    certainty=SignalCertainty.CORRELATIONAL,
                     evidence=[f"Cases occurred within {dist_km:.2f} km of each other (EXACT/SAME LOCATION)"],
                     explanation=f"Exact spatial proximity: {dist_km:.2f} km.",
                     supporting_entity_ids=[],
                     provenance="Step 4A Geographic Coordinates",
-                    uncertainty_note="Spatial proximity evidence; does not prove incident concurrency or causal relationship."
+                    uncertainty_note="Spatial proximity evidence; does not establish causal relationship or offender identity."
                 )
             )
         elif dist_km <= 15.0:
@@ -95,13 +100,14 @@ def extract_attribute_relationship_signals(
                     relationship_type=RelationshipType.SHARED_LOCATION,
                     source_case_id=src_id,
                     target_case_id=tgt_id,
+                    canonical_relationship_key=key,
                     raw_score=round(1.0 - (dist_km / 15.0) * 0.5, 4),
-                    certainty=SignalCertainty.POSSIBLE,
+                    certainty=SignalCertainty.CORRELATIONAL,
                     evidence=[f"Cases occurred {dist_km:.1f} km apart (NEARBY GPS LOCATION)"],
                     explanation=f"Nearby GPS spatial proximity: {dist_km:.2f} km.",
                     supporting_entity_ids=[],
                     provenance="Step 4A Geographic Coordinates",
-                    uncertainty_note="Spatial proximity evidence; does not prove incident concurrency."
+                    uncertainty_note="Spatial proximity evidence; does not establish causal relationship or offender identity."
                 )
             )
     else:
@@ -121,13 +127,14 @@ def extract_attribute_relationship_signals(
                             relationship_type=RelationshipType.SHARED_LOCATION,
                             source_case_id=src_id,
                             target_case_id=tgt_id,
+                            canonical_relationship_key=key,
                             raw_score=0.75,
-                            certainty=SignalCertainty.POSSIBLE,
+                            certainty=SignalCertainty.CORRELATIONAL,
                             evidence=[f"Shared locality tokens: {', '.join(sorted(list(inter)))}"],
                             explanation=f"Locality text token overlap: {text_sim:.2f} (SAME LOCALITY).",
                             supporting_entity_ids=[],
                             provenance="Step 3A Location Normalization",
-                            uncertainty_note="Locality text overlap evidence; does not prove exact incident site concurrency."
+                            uncertainty_note="Locality text overlap evidence; does not establish exact incident site concurrency."
                         )
                     )
 
