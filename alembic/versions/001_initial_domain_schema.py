@@ -17,18 +17,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # 1. Create Enums
-    person_role_enum = postgresql.ENUM('ACCUSED', 'SUSPECT', 'VICTIM', 'WITNESS', 'COMPLAINANT', 'OTHER', name='person_role_enum', create_type=False)
-    person_role_enum.create(op.get_bind(), checkfirst=True)
-
-    vehicle_role_enum = postgresql.ENUM('SUSPECT_VEHICLE', 'STOLEN_VEHICLE', 'RECOVERED_VEHICLE', 'VICTIM_VEHICLE', 'OTHER', name='vehicle_role_enum', create_type=False)
-    vehicle_role_enum.create(op.get_bind(), checkfirst=True)
-
-    evidence_type_enum = postgresql.ENUM('CCTV', 'MOBILE', 'DOCUMENT', 'VEHICLE', 'WEAPON', 'DIGITAL', 'PHYSICAL', 'OTHER', name='evidence_type_enum', create_type=False)
-    evidence_type_enum.create(op.get_bind(), checkfirst=True)
-
-    investigation_event_type_enum = postgresql.ENUM('FIR_REGISTERED', 'STATEMENT_RECORDED', 'EVIDENCE_COLLECTED', 'SUSPECT_IDENTIFIED', 'ARREST', 'SEARCH', 'INTERROGATION', 'CHARGESHEET_FILED', 'OTHER', name='investigation_event_type_enum', create_type=False)
-    investigation_event_type_enum.create(op.get_bind(), checkfirst=True)
+    # 1. Create Enums safely if not existing
+    op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'person_role_enum') THEN CREATE TYPE person_role_enum AS ENUM ('ACCUSED', 'SUSPECT', 'VICTIM', 'WITNESS', 'COMPLAINANT', 'OTHER'); END IF; END $$;")
+    op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vehicle_role_enum') THEN CREATE TYPE vehicle_role_enum AS ENUM ('SUSPECT_VEHICLE', 'STOLEN_VEHICLE', 'RECOVERED_VEHICLE', 'VICTIM_VEHICLE', 'OTHER'); END IF; END $$;")
+    op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'evidence_type_enum') THEN CREATE TYPE evidence_type_enum AS ENUM ('CCTV', 'MOBILE', 'DOCUMENT', 'VEHICLE', 'WEAPON', 'DIGITAL', 'PHYSICAL', 'OTHER'); END IF; END $$;")
+    op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'investigation_event_type_enum') THEN CREATE TYPE investigation_event_type_enum AS ENUM ('FIR_REGISTERED', 'STATEMENT_RECORDED', 'EVIDENCE_COLLECTED', 'SUSPECT_IDENTIFIED', 'ARREST', 'SEARCH', 'INTERROGATION', 'CHARGESHEET_FILED', 'OTHER'); END IF; END $$;")
 
     # 2. Locations
     op.create_table(
@@ -149,7 +142,7 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('case_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('cases.id', ondelete='CASCADE'), nullable=False),
         sa.Column('person_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('persons.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('role', sa.Enum('ACCUSED', 'SUSPECT', 'VICTIM', 'WITNESS', 'COMPLAINANT', 'OTHER', name='person_role_enum'), nullable=False),
+        sa.Column('role', postgresql.ENUM('ACCUSED', 'SUSPECT', 'VICTIM', 'WITNESS', 'COMPLAINANT', 'OTHER', name='person_role_enum', create_type=False), nullable=False),
         sa.Column('details', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -165,7 +158,7 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('case_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('cases.id', ondelete='CASCADE'), nullable=False),
         sa.Column('vehicle_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('vehicles.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('role', sa.Enum('SUSPECT_VEHICLE', 'STOLEN_VEHICLE', 'RECOVERED_VEHICLE', 'VICTIM_VEHICLE', 'OTHER', name='vehicle_role_enum'), nullable=False),
+        sa.Column('role', postgresql.ENUM('SUSPECT_VEHICLE', 'STOLEN_VEHICLE', 'RECOVERED_VEHICLE', 'VICTIM_VEHICLE', 'OTHER', name='vehicle_role_enum', create_type=False), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.UniqueConstraint('case_id', 'vehicle_id', 'role', name='uq_case_vehicle_role')
@@ -191,7 +184,7 @@ def upgrade() -> None:
         'evidences',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('case_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('cases.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('evidence_type', sa.Enum('CCTV', 'MOBILE', 'DOCUMENT', 'VEHICLE', 'WEAPON', 'DIGITAL', 'PHYSICAL', 'OTHER', name='evidence_type_enum'), nullable=False),
+        sa.Column('evidence_type', postgresql.ENUM('CCTV', 'MOBILE', 'DOCUMENT', 'VEHICLE', 'WEAPON', 'DIGITAL', 'PHYSICAL', 'OTHER', name='evidence_type_enum', create_type=False), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('source', sa.String(length=255), nullable=True),
         sa.Column('collected_at', sa.DateTime(timezone=True), nullable=True),
@@ -221,7 +214,7 @@ def upgrade() -> None:
         'investigation_events',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('case_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('cases.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('event_type', sa.Enum('FIR_REGISTERED', 'STATEMENT_RECORDED', 'EVIDENCE_COLLECTED', 'SUSPECT_IDENTIFIED', 'ARREST', 'SEARCH', 'INTERROGATION', 'CHARGESHEET_FILED', 'OTHER', name='investigation_event_type_enum'), nullable=False),
+        sa.Column('event_type', postgresql.ENUM('FIR_REGISTERED', 'STATEMENT_RECORDED', 'EVIDENCE_COLLECTED', 'SUSPECT_IDENTIFIED', 'ARREST', 'SEARCH', 'INTERROGATION', 'CHARGESHEET_FILED', 'OTHER', name='investigation_event_type_enum', create_type=False), nullable=False),
         sa.Column('description', sa.Text(), nullable=False),
         sa.Column('event_date', sa.DateTime(timezone=True), nullable=False),
         sa.Column('officer_reference', sa.String(length=255), nullable=True),
