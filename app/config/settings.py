@@ -30,6 +30,22 @@ class Settings(BaseSettings):
     THRESHOLD_HIGH_CONFIDENCE: float = 0.80
     THRESHOLD_POSSIBLE_MATCH: float = 0.55
 
+    # Step 4B Case Similarity Weights
+    SIM_WEIGHT_MO_TEXT: float = 0.25
+    SIM_WEIGHT_CRIME_CATEGORY: float = 0.15
+    SIM_WEIGHT_LEGAL_SECTIONS: float = 0.10
+    SIM_WEIGHT_GEOGRAPHIC: float = 0.15
+    SIM_WEIGHT_TEMPORAL: float = 0.10
+    SIM_WEIGHT_PERSON_OVERLAP: float = 0.15
+    SIM_WEIGHT_VEHICLE_OVERLAP: float = 0.05
+    SIM_WEIGHT_PHONE_OVERLAP: float = 0.05
+
+    # Case Similarity Decay Constants & Thresholds
+    GEO_DECAY_KM: float = 10.0
+    TEMPORAL_DECAY_DAYS: float = 30.0
+    THRESHOLD_HIGH_SIMILARITY: float = 0.75
+    THRESHOLD_MODERATE_SIMILARITY: float = 0.50
+
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         url = self.DATABASE_URL or "postgresql://postgres:password@localhost:5432/postgres"
