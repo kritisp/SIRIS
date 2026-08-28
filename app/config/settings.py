@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,12 +10,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DEBUG: bool = True
 
-    # PostgreSQL Configuration
-    POSTGRES_SERVER: str = "postgres"
-    POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str = "siris_user"
-    POSTGRES_PASSWORD: str = "siris_password"
-    POSTGRES_DB: str = "siris_db"
+    # Supabase PostgreSQL Configuration
+    DATABASE_URL: Optional[str] = None
 
     # Neo4j Configuration
     NEO4J_URI: str = "bolt://neo4j:7687"
@@ -23,10 +20,10 @@ class Settings(BaseSettings):
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
-        return (
-            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
+        url = self.DATABASE_URL or "postgresql://postgres:password@localhost:5432/postgres"
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
 
     model_config = SettingsConfigDict(
         env_file=".env",
