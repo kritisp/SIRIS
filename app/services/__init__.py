@@ -31,6 +31,16 @@ from app.services.privacy_engine import (
     pii_backmapper,
     LLM_PRIVACY_BOUNDARY_METHODOLOGY_VERSION,
 )
+from app.services.llm_reasoning_engine import (
+    ReasoningStatus,
+    LLMProvider,
+    LLMTraceableStatement,
+    LLMReasoningResult,
+    PoliceFacingIntelligenceReport,
+    LLMReasoningEngine,
+    llm_reasoning_engine,
+    LLM_REASONING_METHODOLOGY_VERSION,
+)
 
 __all__ = [
     "PatternType",
@@ -60,4 +70,12 @@ __all__ = [
     "PIIBackmappingEngine",
     "pii_backmapper",
     "LLM_PRIVACY_BOUNDARY_METHODOLOGY_VERSION",
+    "ReasoningStatus",
+    "LLMProvider",
+    "LLMTraceableStatement",
+    "LLMReasoningResult",
+    "PoliceFacingIntelligenceReport",
+    "LLMReasoningEngine",
+    "llm_reasoning_engine",
+    "LLM_REASONING_METHODOLOGY_VERSION",
 ]

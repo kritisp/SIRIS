@@ -69,6 +69,20 @@ class Settings(BaseSettings):
     REL_THRESH_MODERATE: float = 0.50
     REL_THRESH_LOW: float = 0.25
 
+    # Step 8 LLM Reasoning Layer Configuration
+    LLM_PRIMARY_PROVIDER: str = "groq"
+    LLM_FALLBACK_PROVIDER: str = "cerebras"
+    LLM_LOCAL_PROVIDER: str = "ollama"
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    CEREBRAS_API_KEY: Optional[str] = None
+    CEREBRAS_MODEL: str = "llama3.1-70b"
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3:latest"
+    LLM_TEMPERATURE: float = 0.0
+    LLM_TIMEOUT_SECONDS: float = 30.0
+    LLM_MAX_RETRIES: int = 2
+
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         url = self.DATABASE_URL or "postgresql://postgres:password@localhost:5432/postgres"
