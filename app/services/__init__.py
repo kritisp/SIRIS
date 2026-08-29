@@ -41,6 +41,10 @@ from app.services.llm_reasoning_engine import (
     llm_reasoning_engine,
     LLM_REASONING_METHODOLOGY_VERSION,
 )
+from app.services.intelligence_orchestration_service import (
+    intelligence_orchestration_service,
+    IntelligenceOrchestrationService,
+)
 
 __all__ = [
     "PatternType",
