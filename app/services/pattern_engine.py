@@ -147,12 +147,17 @@ class PatternIntelligenceEngine:
         if PatternType.GRAPH_STRUCTURAL in allowed_types:
             patterns.extend(self._detect_graph_structural_patterns(cases, request))
 
-        # Deduplicate & Filter patterns below minimum recurrence or supporting signal threshold
-        filtered_patterns = [
-            p for p in patterns
-            if p.occurrence_count >= request.minimum_recurrence
-            and len(p.supporting_signals) >= request.minimum_supporting_signals
-        ]
+        # Deduplicate by pattern_id & Filter patterns below minimum recurrence or supporting signal threshold
+        unique_patterns_map: Dict[str, PatternObservation] = {}
+        for p in patterns:
+            if (
+                p.occurrence_count >= request.minimum_recurrence
+                and len(p.supporting_signals) >= request.minimum_supporting_signals
+            ):
+                if p.pattern_id not in unique_patterns_map:
+                    unique_patterns_map[p.pattern_id] = p
+
+        filtered_patterns = list(unique_patterns_map.values())
 
         # Deterministic sorting: 1. occurrence_count desc, 2. structural_strength desc, 3. pattern_type asc, 4. pattern_id asc
         filtered_patterns.sort(
@@ -206,8 +211,8 @@ class PatternIntelligenceEngine:
                     PatternObservation(
                         pattern_id=pat_id,
                         pattern_type=PatternType.MODUS_OPERANDI,
-                        title=f"Recurring Modus Operandi Pattern: {crime_type}",
-                        description=f"Identified {len(c_list)} cases sharing matching crime category '{category}' and operational crime type '{crime_type}'.",
+                        title=f"Recurring Operational Characteristics Pattern: {crime_type}",
+                        description=f"Identified {len(c_list)} cases exhibiting matching crime category '{category}' and operational crime type '{crime_type}'. Indicates shared operational characteristics across cases.",
                         case_ids=case_ids,
                         entity_ids=[],
                         entity_types=[],

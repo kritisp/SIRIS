@@ -151,6 +151,93 @@ def test_unit_recurring_entity_patterns():
     assert person_pat.pattern_id == pat_id_again
 
 
+def test_unit_duplicate_inputs_and_deduplication():
+    """Hardening Test 5: Verifies duplicate case inputs and duplicate entity associations produce clean deduplicated pattern output."""
+    id_case_a, id_case_b = uuid.uuid4(), uuid.uuid4()
+    id_p1 = uuid.uuid4()
+
+    person_p1 = Person(id=id_p1, name="Ramesh Kumar", gender="MALE", identifier_hash="hash_p1")
+
+    case_a = Case(
+        id=id_case_a, fir_number="FIR/2026/A_DUP", station_id="PS_BBSR_001",
+        police_station="Capital PS", district="Khordha", state="Odisha", registration_date=date(2026, 8, 1),
+        crime_type="ROBBERY", crime_category="PROPERTY_CRIME", status="UNDER_INVESTIGATION"
+    )
+    # Add duplicate person associations to same case
+    assoc1 = CasePerson(case_id=id_case_a, person_id=id_p1, person=person_p1, role=PersonRole.SUSPECT)
+    assoc2 = CasePerson(case_id=id_case_a, person_id=id_p1, person=person_p1, role=PersonRole.SUSPECT)
+    case_a.person_associations = [assoc1, assoc2]
+
+    case_b = Case(
+        id=id_case_b, fir_number="FIR/2026/B_DUP", station_id="PS_CTC_002",
+        police_station="Cuttack Sadar PS", district="Cuttack", state="Odisha", registration_date=date(2026, 8, 5),
+        crime_type="ROBBERY", crime_category="PROPERTY_CRIME", status="UNDER_INVESTIGATION"
+    )
+    case_b.person_associations = [CasePerson(case_id=id_case_b, person_id=id_p1, person=person_p1, role=PersonRole.ACCUSED)]
+
+    # Pass duplicate case_a in cases list
+    req = PatternDetectionRequest(cases=[case_a, case_a, case_b], minimum_recurrence=2)
+    res = pattern_intelligence_engine.detect_patterns(req)
+
+    # Ensure no duplicate pattern_ids exist in result
+    pattern_ids = [p.pattern_id for p in res.patterns]
+    assert len(pattern_ids) == len(set(pattern_ids))
+
+
+def test_unit_temporal_boundaries_and_multiple_clusters():
+    """Hardening Test 7: Verifies exact temporal boundary dates and multiple temporal clusters."""
+    id_c1, id_c2, id_c3, id_c4 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    # Cluster 1: Day 1 and Day 30 (Exact 30-day boundary)
+    case1 = Case(id=id_c1, fir_number="FIR/2026/T1", station_id="PS_BBSR_001", police_station="P1", district="D1", state="S1", registration_date=date(2026, 8, 1), crime_type="THEFT", crime_category="PROPERTY")
+    case2 = Case(id=id_c2, fir_number="FIR/2026/T2", station_id="PS_BBSR_001", police_station="P1", district="D1", state="S1", registration_date=date(2026, 8, 31), crime_type="THEFT", crime_category="PROPERTY")
+
+    # Cluster 2: Day 100 and Day 105
+    case3 = Case(id=id_c3, fir_number="FIR/2026/T3", station_id="PS_BBSR_001", police_station="P1", district="D1", state="S1", registration_date=date(2026, 11, 10), crime_type="THEFT", crime_category="PROPERTY")
+    case4 = Case(id=id_c4, fir_number="FIR/2026/T4", station_id="PS_BBSR_001", police_station="P1", district="D1", state="S1", registration_date=date(2026, 11, 15), crime_type="THEFT", crime_category="PROPERTY")
+
+    req = PatternDetectionRequest(cases=[case1, case2, case3, case4], temporal_window_days=30, minimum_recurrence=2)
+    res = pattern_intelligence_engine.detect_patterns(req)
+
+    temp_pats = [p for p in res.patterns if p.pattern_type == PatternType.TEMPORAL_CLUSTER]
+    assert len(temp_pats) >= 2
+
+
+def test_unit_step5b_confidence_immutability():
+    """Hardening Test 9: Guarantees Step 5B RelationshipConfidenceAssessment objects are 100% immutable."""
+    assessment = RelationshipConfidenceAssessment(
+        source_case_id=str(uuid.uuid4()),
+        target_case_id=str(uuid.uuid4()),
+        canonical_relationship_key="case1::case2",
+        confidence_score=0.77,
+        confidence_level=RelationshipConfidenceLevel.MODERATE,
+        contributing_families=[SignalFamily.LOCATION],
+        evidence_summary="Location match assessment.",
+        explanation="Test assessment.",
+        uncertainty_notes=[],
+    )
+
+    req = PatternDetectionRequest(cases=[], confidence_assessments=[assessment])
+    res = pattern_intelligence_engine.detect_patterns(req)
+
+    # Assert attributes remain identical
+    assert assessment.confidence_score == 0.77
+    assert assessment.confidence_level == RelationshipConfidenceLevel.MODERATE
+    assert assessment.evidence_summary == "Location match assessment."
+
+
+def test_unit_empty_and_malformed_graph_results_resilience():
+    """Hardening Test 8: Verifies None/empty graph analytics results handle cleanly without exceptions."""
+    req = PatternDetectionRequest(
+        cases=[],
+        graph_analytics_result=None,
+        community_detection_result=None,
+        traversal_results=None,
+    )
+    res = pattern_intelligence_engine.detect_patterns(req)
+    assert res.total_patterns_detected == 0
+
+
 def test_live_synthetic_integration_and_graph_cleanup():
     """Tests 10, 21, 22, 23, 24: End-to-End Live Integration Test with Step 5C-5G and 0 persistent Neo4j nodes."""
     health = neo4j_connection_service.check_health()
@@ -229,3 +316,4 @@ def test_live_synthetic_integration_and_graph_cleanup():
             rels = session.run("MATCH ()-[r]->() RETURN count(r) AS c").single()["c"]
             assert nodes == 0
             assert rels == 0
+
