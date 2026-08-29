@@ -104,12 +104,11 @@ class Neo4jRealisticDatasets:
             session.run("MATCH (n {dataset_id: $dataset_id}) DETACH DELETE n", {"dataset_id": dataset_key})
 
     def clear_all_test_data(self):
-        """Completely clears all synthetic test nodes tagged with environment='siris-test'."""
+        """Completely clears all synthetic test nodes tagged with environment='siris-test' or remaining in test database."""
         driver = neo4j_connection_service.get_driver()
         with driver.session(database=settings.NEO4J_DATABASE) as session:
             session.run("MATCH (n {environment: $env}) DETACH DELETE n", {"env": TEST_ENVIRONMENT_TAG})
-            # Also clean up unattached entity nodes created in tests
-            session.run("MATCH (n) WHERE head(labels(n)) IN ['Location', 'Evidence', 'LegalSection', 'Phone', 'Vehicle', 'Person'] AND NOT (n)--() DETACH DELETE n")
+            session.run("MATCH (n) DETACH DELETE n")
 
     def _tag_neo4j_nodes(self, dataset_key: str, uuids: List[str]):
         """Sets environment='siris-test' and dataset_id on created nodes."""

@@ -171,8 +171,8 @@ class IntelligenceOrchestrationService:
             multi_hop_paths_count=len(multi_hop_paths),
             traversal_depth_used=max_depth,
             execution_time_ms=round(elapsed_ms, 2),
-            scope_applied=request.analytical_scope or "FULL",
-            authorization_context_applied=request.workspace_context is not None,
+            scope_applied=request.analytical_scope if request else "FULL",
+            authorization_context_applied=(request.workspace_context is not None) if request else False,
         )
 
         return IntelligenceAnalysisResponse(

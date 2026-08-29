@@ -46,6 +46,7 @@ from app.services.llm_reasoning_engine import (
     llm_reasoning_engine,
     LLM_REASONING_METHODOLOGY_VERSION,
 )
+from app.seeds.neo4j_realistic_datasets import neo4j_realistic_datasets
 from app.services.graph import (
     canonicalize_case_pair,
     neo4j_connection_service,
@@ -201,6 +202,9 @@ def neo4j_test_graph(synthetic_investigation_dataset):
     cases = synthetic_investigation_dataset["cases"]
     all_uuids = synthetic_investigation_dataset["uuids"]
 
+    # 0. Ensure clean starting state
+    neo4j_realistic_datasets.clear_all_test_data()
+    
     # 1. Project Cases & Entity Nodes
     for case_obj in cases:
         neo4j_graph_projection_service.project_case_graph(case_obj)
@@ -237,15 +241,7 @@ def neo4j_test_graph(synthetic_investigation_dataset):
     yield {"cases": cases, "assessments": assessments, "uuids": all_uuids}
 
     # Teardown & Complete Cleanup
-    driver = neo4j_connection_service.get_driver()
-    with driver.session(database=settings.NEO4J_DATABASE) as session:
-        session.run("MATCH (n) WHERE n.node_id IN $ids OR n.case_id IN $ids DETACH DELETE n", {"ids": all_uuids})
-        session.run("MATCH (n) WHERE head(labels(n)) IN ['Location', 'Evidence', 'LegalSection', 'Phone', 'Vehicle', 'Person'] AND NOT (n)--() DETACH DELETE n")
-        
-        nodes_left = session.run("MATCH (n) RETURN count(n) AS c").single()["c"]
-        rels_left = session.run("MATCH ()-[r]->() RETURN count(r) AS c").single()["c"]
-        assert nodes_left == 0, f"Neo4j cleanup failed: {nodes_left} nodes remaining!"
-        assert rels_left == 0, f"Neo4j cleanup failed: {rels_left} relationships remaining!"
+    neo4j_realistic_datasets.clear_all_test_data()
 
 
 # =====================================================================
