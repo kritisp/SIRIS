@@ -18,6 +18,19 @@ from app.services.explainability_engine import (
     explainability_engine,
     EXPLAINABLE_INTELLIGENCE_METHODOLOGY_VERSION,
 )
+from app.services.privacy_engine import (
+    PIIEntityType,
+    MaskedIdentifier,
+    DeidentificationMapping,
+    LLMSafeExplainabilityAssessment,
+    LLMSafeExplainabilityPayload,
+    DeidentificationResult,
+    PIIPrivacyBoundaryEngine,
+    pii_privacy_boundary_engine,
+    PIIBackmappingEngine,
+    pii_backmapper,
+    LLM_PRIVACY_BOUNDARY_METHODOLOGY_VERSION,
+)
 
 __all__ = [
     "PatternType",
@@ -36,4 +49,15 @@ __all__ = [
     "ExplainabilityEngine",
     "explainability_engine",
     "EXPLAINABLE_INTELLIGENCE_METHODOLOGY_VERSION",
+    "PIIEntityType",
+    "MaskedIdentifier",
+    "DeidentificationMapping",
+    "LLMSafeExplainabilityAssessment",
+    "LLMSafeExplainabilityPayload",
+    "DeidentificationResult",
+    "PIIPrivacyBoundaryEngine",
+    "pii_privacy_boundary_engine",
+    "PIIBackmappingEngine",
+    "pii_backmapper",
+    "LLM_PRIVACY_BOUNDARY_METHODOLOGY_VERSION",
 ]
