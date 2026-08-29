@@ -12,11 +12,32 @@ logger = logging.getLogger(__name__)
 LLM_PRIVACY_BOUNDARY_METHODOLOGY_VERSION = "llm-privacy-boundary-v1"
 
 # Regex patterns for auto-detecting PII in text strings
-PHONE_PATTERN = re.compile(r"(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}")
+PHONE_PATTERN = re.compile(r"(\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}")
 EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-VEHICLE_REG_PATTERN = re.compile(r"\b[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}\b")
+VEHICLE_REG_PATTERN = re.compile(r"\b[A-Z]{2}[-.\s]?[0-9]{1,2}[-.\s]?[A-Z]{1,3}[-.\s]?[0-9]{4}\b")
 GOVT_ID_PATTERN = re.compile(r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b|\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b")
 UUID_PATTERN = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
+
+# Regex patterns for redacting secrets, connection strings, credentials
+SECRET_PATTERN = re.compile(
+    r"(postgresql|postgres|neo4j|neo4j\+s|bolt|amqp|https?):\/\/[^\s\'\"]+"
+    r"|(bearer\s+[a-zA-Z0-9._\-]+)"
+    r"|(sk-[a-zA-Z0-9]{20,})"
+    r"|(password\s*=\s*[^\s\'\"]+)",
+    re.IGNORECASE,
+)
+
+# Prompt injection keywords/delimiters to neutralize in analytical data text
+PROMPT_INJECTION_DIRECTIVES = [
+    re.compile(r"system\s+directive\s*:", re.IGNORECASE),
+    re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE),
+    re.compile(r"override\s+system\s+instructions", re.IGNORECASE),
+    re.compile(r"you\s+are\s+now\s+a", re.IGNORECASE),
+    re.compile(r"<\|im_start\|>", re.IGNORECASE),
+    re.compile(r"<\|im_end\|>", re.IGNORECASE),
+    re.compile(r"\[INST\]", re.IGNORECASE),
+    re.compile(r"\[/INST\]", re.IGNORECASE),
+]
 
 
 # =====================================================================
@@ -122,15 +143,20 @@ class PIIPrivacyBoundaryEngine:
         mapping = DeidentificationMapping()
         counters: Dict[str, int] = {}
 
-        # 1. Register domain entity PII from cases if provided
+        # 1. Register domain entity PII from cases deterministically
         if cases:
-            for case in cases:
+            sorted_cases = sorted(cases, key=lambda c: str(c.id))
+            for case in sorted_cases:
                 case_id_str = str(case.id)
                 self._get_or_create_alias(case_id_str, PIIEntityType.CASE_IDENTIFIER, mapping, counters)
                 if case.fir_number:
                     self._get_or_create_alias(case.fir_number, PIIEntityType.CASE_IDENTIFIER, mapping, counters)
 
-                for assoc in getattr(case, "person_associations", []):
+                person_assocs = sorted(
+                    getattr(case, "person_associations", []),
+                    key=lambda pa: (str(pa.person_id), getattr(pa.person, "name", "") or "")
+                )
+                for assoc in person_assocs:
                     p = getattr(assoc, "person", None)
                     if p:
                         p_alias = None
@@ -143,7 +169,11 @@ class PIIPrivacyBoundaryEngine:
                             else:
                                 self._get_or_create_alias(p.name, PIIEntityType.PERSON_NAME, mapping, counters)
 
-                for assoc in getattr(case, "vehicle_associations", []):
+                vehicle_assocs = sorted(
+                    getattr(case, "vehicle_associations", []),
+                    key=lambda va: (str(va.vehicle_id), getattr(va.vehicle, "registration_number", "") or "")
+                )
+                for assoc in vehicle_assocs:
                     v = getattr(assoc, "vehicle", None)
                     if v:
                         v_alias = None
@@ -152,11 +182,15 @@ class PIIPrivacyBoundaryEngine:
                         if getattr(v, "registration_number", None) and v.registration_number:
                             if v_alias:
                                 mapping.original_to_alias[v.registration_number] = v_alias
-                                mapping.alias_to_original[v_alias] = v.registration_number  # Prefer registration number
+                                mapping.alias_to_original[v_alias] = v.registration_number
                             else:
                                 self._get_or_create_alias(v.registration_number, PIIEntityType.VEHICLE_REGISTRATION, mapping, counters)
 
-                for assoc in getattr(case, "phone_associations", []):
+                phone_assocs = sorted(
+                    getattr(case, "phone_associations", []),
+                    key=lambda pha: (str(pha.phone_id), getattr(pha.phone, "normalized_number", "") or "")
+                )
+                for assoc in phone_assocs:
                     ph = getattr(assoc, "phone", None)
                     if ph:
                         ph_alias = None
@@ -165,14 +199,15 @@ class PIIPrivacyBoundaryEngine:
                         if getattr(ph, "normalized_number", None) and ph.normalized_number:
                             if ph_alias:
                                 mapping.original_to_alias[ph.normalized_number] = ph_alias
-                                mapping.alias_to_original[ph_alias] = ph.normalized_number  # Prefer phone number
+                                mapping.alias_to_original[ph_alias] = ph.normalized_number
                             else:
                                 self._get_or_create_alias(ph.normalized_number, PIIEntityType.PHONE_NUMBER, mapping, counters)
 
-        # 2. Process Assessments
+        # 2. Process Assessments deterministically ordered by explanation_id
+        sorted_explanations = sorted(explainability_result.explanations, key=lambda e: e.explanation_id)
         llm_assessments: List[LLMSafeExplainabilityAssessment] = []
 
-        for exp in explainability_result.explanations:
+        for exp in sorted_explanations:
             subject_alias = self._mask_identifier_or_text(exp.subject_id, exp.subject_type, mapping, counters)
 
             case_aliases = [
@@ -215,6 +250,8 @@ class PIIPrivacyBoundaryEngine:
                 sig_dict["provenance"] = self._mask_pii_in_value(sig_dict.get("provenance", {}), mapping, counters)
                 signals_masked.append(sig_dict)
 
+            conf_ref_masked = self._mask_pii_in_value(exp.confidence_reference, mapping, counters) if exp.confidence_reference else None
+
             context = {
                 "station_ids": exp.provenance.get("police_stations") or exp.provenance.get("station_ids") or [],
                 "district": exp.provenance.get("district"),
@@ -223,6 +260,7 @@ class PIIPrivacyBoundaryEngine:
                 "density": exp.provenance.get("density"),
                 "betweenness": exp.provenance.get("betweenness"),
             }
+            context_masked = self._mask_pii_in_value(context, mapping, counters)
 
             llm_assessments.append(
                 LLMSafeExplainabilityAssessment(
@@ -240,9 +278,9 @@ class PIIPrivacyBoundaryEngine:
                     supporting_connector_ids=exp.supporting_connector_ids,
                     evidence_items=evidence_items_masked,
                     contributing_signals=signals_masked,
-                    confidence_reference=exp.confidence_reference,
+                    confidence_reference=conf_ref_masked,
                     limitations=limitations_masked,
-                    preserved_analytical_context={k: v for k, v in context.items() if v is not None},
+                    preserved_analytical_context={k: v for k, v in context_masked.items() if v is not None},
                     methodology_version=LLM_PRIVACY_BOUNDARY_METHODOLOGY_VERSION,
                 )
             )
@@ -333,42 +371,48 @@ class PIIPrivacyBoundaryEngine:
         if not text:
             return text
 
-        masked_text = text
+        masked_text = str(text)
 
-        # Replace existing mapped originals first
-        for orig, alias in sorted(mapping.original_to_alias.items(), key=lambda x: -len(x[0])):
+        # 1. Redact Secrets & Credentials first
+        masked_text = SECRET_PATTERN.sub("[REDACTED_SECRET]", masked_text)
+
+        # 2. Neutralize Prompt Injection Directives
+        masked_text = self._sanitize_prompt_injection(masked_text)
+
+        # 3. Replace existing mapped originals (longest string first)
+        for orig, alias in sorted(mapping.original_to_alias.items(), key=lambda x: -len(str(x[0]))):
             if orig in masked_text:
                 masked_text = masked_text.replace(orig, alias)
 
-        # Detect Phone
+        # 4. Detect Phone
         for m in PHONE_PATTERN.finditer(masked_text):
             raw = m.group(0)
             if not raw.startswith("Phone-"):
                 alias = self._get_or_create_alias(raw, PIIEntityType.PHONE_NUMBER, mapping, counters)
                 masked_text = masked_text.replace(raw, alias)
 
-        # Detect Email
+        # 5. Detect Email
         for m in EMAIL_PATTERN.finditer(masked_text):
             raw = m.group(0)
             if not raw.startswith("Email-"):
                 alias = self._get_or_create_alias(raw, PIIEntityType.EMAIL_ADDRESS, mapping, counters)
                 masked_text = masked_text.replace(raw, alias)
 
-        # Detect Vehicle Reg
+        # 6. Detect Vehicle Reg
         for m in VEHICLE_REG_PATTERN.finditer(masked_text):
             raw = m.group(0)
             if not raw.startswith("Vehicle-"):
                 alias = self._get_or_create_alias(raw, PIIEntityType.VEHICLE_REGISTRATION, mapping, counters)
                 masked_text = masked_text.replace(raw, alias)
 
-        # Detect Govt ID
+        # 7. Detect Govt ID
         for m in GOVT_ID_PATTERN.finditer(masked_text):
             raw = m.group(0)
             if not raw.startswith("ID-"):
                 alias = self._get_or_create_alias(raw, PIIEntityType.GOVERNMENT_ID, mapping, counters)
                 masked_text = masked_text.replace(raw, alias)
 
-        # Detect UUIDs
+        # 8. Detect UUIDs
         for m in UUID_PATTERN.finditer(masked_text):
             raw = m.group(0)
             if not any(raw in a for a in mapping.alias_to_original.keys()):
@@ -376,6 +420,13 @@ class PIIPrivacyBoundaryEngine:
                 masked_text = masked_text.replace(raw, alias)
 
         return masked_text
+
+    def _sanitize_prompt_injection(self, text: str) -> str:
+        """Neutralizes prompt injection directives in analytical text strings."""
+        sanitized = text
+        for directive_re in PROMPT_INJECTION_DIRECTIVES:
+            sanitized = directive_re.sub("[NEUTRALIZED_DIRECTIVE]", sanitized)
+        return sanitized
 
     def _mask_pii_in_value(
         self,
@@ -414,14 +465,14 @@ class PIIBackmappingEngine:
         if not llm_text or not private_mapping.alias_to_original:
             return llm_text
 
-        restored = llm_text
+        restored = str(llm_text)
 
         # Sort aliases by length descending to avoid partial token replacement (e.g. Person-AA vs Person-A)
         sorted_aliases = sorted(private_mapping.alias_to_original.keys(), key=lambda a: -len(a))
 
         for alias in sorted_aliases:
             orig = private_mapping.alias_to_original[alias]
-            # Match word boundary token for alias
+            # Match exact word boundary token for alias
             pattern = re.compile(r"\b" + re.escape(alias) + r"\b")
             restored = pattern.sub(orig, restored)
 
