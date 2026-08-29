@@ -215,22 +215,22 @@ class IntelligenceOrchestrationService:
         paths: List[MultiHopPathInfo] = []
         try:
             trav_res = neo4j_graph_traversal_service.traverse(
-                GraphTraversalRequest(start_node_id=str(target_case.id), max_depth=max_depth)
+                GraphTraversalRequest(start_node_id=str(target_case.id), maximum_depth=max_depth)
             )
             for idx, p_item in enumerate(trav_res.paths[:5]):
                 path_hops = []
-                for step_idx, hop in enumerate(p_item.hops):
+                for step_idx, edge in enumerate(p_item.edges):
                     path_hops.append(
                         MultiHopPathHop(
                             step=step_idx + 1,
-                            from_node_id=hop.start_node_id,
-                            from_node_type=hop.start_node_type or "Entity",
-                            from_node_label=hop.start_node_label or hop.start_node_id,
-                            relationship_type=hop.relationship_type,
-                            to_node_id=hop.end_node_id,
-                            to_node_type=hop.end_node_type or "Entity",
-                            to_node_label=hop.end_node_label or hop.end_node_id,
-                            confidence_score=hop.confidence_score,
+                            from_node_id=edge.source_node_id,
+                            from_node_type="Entity",
+                            from_node_label=edge.source_node_id,
+                            relationship_type=edge.type,
+                            to_node_id=edge.target_node_id,
+                            to_node_type="Entity",
+                            to_node_label=edge.target_node_id,
+                            confidence_score=0.9,
                         )
                     )
                 paths.append(

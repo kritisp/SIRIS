@@ -212,7 +212,7 @@ def test_api_dataset_10_complex_multistation_demonstration(neo4j_realistic_fixtu
     assert res.status_code == 200
     body = res.json()
     assert body["report"]["status"] == "SUCCESS"
-    assert body["analytical_metadata"]["cases_evaluated_count"] == 20
+    assert body["analytical_metadata"]["cases_evaluated_count"] == 25
     assert body["analytical_metadata"]["stations_involved_count"] == 5
     assert body["analytical_metadata"]["authorization_context_applied"] is True
 

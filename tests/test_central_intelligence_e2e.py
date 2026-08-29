@@ -238,6 +238,8 @@ def neo4j_test_graph(synthetic_investigation_dataset):
                 assessments.append(ass)
                 neo4j_graph_projection_service.project_relationship_assessment(ass)
 
+    neo4j_realistic_datasets._tag_neo4j_nodes("e2e_test", all_uuids)
+
     yield {"cases": cases, "assessments": assessments, "uuids": all_uuids}
 
     # Teardown & Complete Cleanup
