@@ -182,31 +182,43 @@ class BaseLLMClient:
 
 
 class GroqLLMClient(BaseLLMClient):
-    """Primary LLM Client Adapter for Groq API."""
+    """Primary LLM Client Adapter for Groq API with multi-key failover."""
 
     def call_provider(
         self, payload_json: str, system_prompt: str
     ) -> Tuple[Optional[str], Optional[ReasoningStatus], Optional[str]]:
-        api_key = settings.GROQ_API_KEY
-        if not api_key:
+        api_keys = settings.effective_groq_api_keys
+        if not api_keys:
             return None, ReasoningStatus.PROVIDER_UNAVAILABLE, "Groq API key not configured."
 
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        body = {
-            "model": settings.GROQ_MODEL,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Structured Analytical Input:\n```json\n{payload_json}\n```"},
-            ],
-            "temperature": settings.LLM_TEMPERATURE,
-            "response_format": {"type": "json_object"},
-        }
+        last_status = ReasoningStatus.PROVIDER_UNAVAILABLE
+        last_err = "All configured Groq API keys failed."
 
-        return self._make_http_request(url, headers, body, "Groq")
+        for key in api_keys:
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+            }
+            body = {
+                "model": settings.GROQ_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Structured Analytical Input:\n```json\n{payload_json}\n```"},
+                ],
+                "temperature": settings.LLM_TEMPERATURE,
+                "response_format": {"type": "json_object"},
+            }
+
+            content, status, err = self._make_http_request(url, headers, body, "Groq")
+            if status == ReasoningStatus.SUCCESS and content:
+                return content, status, None
+            
+            last_status = status or last_status
+            last_err = err or last_err
+            logger.warning(f"Groq API key attempt failed: {err}. Trying next key...")
+
+        return None, last_status, last_err
 
     def _make_http_request(
         self, url: str, headers: Dict[str, str], body: Dict[str, Any], provider_name: str

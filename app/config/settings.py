@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     LLM_FALLBACK_PROVIDER: str = "cerebras"
     LLM_LOCAL_PROVIDER: str = "ollama"
     GROQ_API_KEY: Optional[str] = None
+    GROQ_API_KEYS: Optional[str] = None
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     CEREBRAS_API_KEY: Optional[str] = None
     CEREBRAS_MODEL: str = "llama3.1-70b"
@@ -82,6 +83,15 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.0
     LLM_TIMEOUT_SECONDS: float = 30.0
     LLM_MAX_RETRIES: int = 2
+
+    @property
+    def effective_groq_api_keys(self) -> List[str]:
+        keys: List[str] = []
+        if self.GROQ_API_KEYS:
+            keys.extend([k.strip() for k in self.GROQ_API_KEYS.split(",") if k.strip()])
+        if self.GROQ_API_KEY and self.GROQ_API_KEY.strip() not in keys:
+            keys.append(self.GROQ_API_KEY.strip())
+        return keys
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
