@@ -14,9 +14,15 @@ class Settings(BaseSettings):
     DATABASE_URL: Optional[str] = None
 
     # Neo4j Configuration
-    NEO4J_URI: str = "bolt://neo4j:7687"
+    NEO4J_URI: str = "bolt://127.0.0.1:7687"
+    NEO4J_USERNAME: str = "neo4j"
     NEO4J_USER: str = "neo4j"
-    NEO4J_PASSWORD: str = "siris_password"
+    NEO4J_PASSWORD: str = ""
+    NEO4J_DATABASE: str = "neo4j"
+
+    @property
+    def effective_neo4j_user(self) -> str:
+        return self.NEO4J_USERNAME or self.NEO4J_USER or "neo4j"
 
     # Entity Resolution Scoring Weights
     PERSON_WEIGHT_NAME: float = 0.30
