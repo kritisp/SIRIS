@@ -50,6 +50,15 @@ from app.services.graph.analytics import (
     Neo4jNetworkAnalyticsService,
     neo4j_network_analytics_service,
 )
+from app.services.graph.community import (
+    CommunityDetectionRequest,
+    CommunityMember,
+    CommunityEdgeSummary,
+    CommunityCluster,
+    CommunityDetectionResult,
+    Neo4jCommunityDetectionService,
+    neo4j_community_detection_service,
+)
 
 __all__ = [
     "Neo4jHealthCheck",
@@ -92,4 +101,11 @@ __all__ = [
     "NetworkAnalyticsResult",
     "Neo4jNetworkAnalyticsService",
     "neo4j_network_analytics_service",
+    "CommunityDetectionRequest",
+    "CommunityMember",
+    "CommunityEdgeSummary",
+    "CommunityCluster",
+    "CommunityDetectionResult",
+    "Neo4jCommunityDetectionService",
+    "neo4j_community_detection_service",
 ]
