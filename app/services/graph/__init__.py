@@ -26,6 +26,10 @@ from app.services.graph.schema import (
     Neo4jSchemaManager,
     neo4j_schema_manager,
 )
+from app.services.graph.projection import (
+    Neo4jGraphProjectionService,
+    neo4j_graph_projection_service,
+)
 
 __all__ = [
     "Neo4jHealthCheck",
@@ -50,4 +54,6 @@ __all__ = [
     "canonicalize_case_pair",
     "Neo4jSchemaManager",
     "neo4j_schema_manager",
+    "Neo4jGraphProjectionService",
+    "neo4j_graph_projection_service",
 ]
