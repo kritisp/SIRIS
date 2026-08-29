@@ -5,8 +5,17 @@ from app.services.relationship_engine.confidence.models import RelationshipConfi
 
 
 def canonicalize_case_pair(id1: str, id2: str) -> tuple[str, str, str]:
-    """Returns (min_case_id, max_case_id, canonical_relationship_key) for any pair of case IDs."""
-    s1, s2 = sorted([str(id1), str(id2)])
+    """Returns (min_case_id, max_case_id, canonical_relationship_key) for any pair of case IDs.
+    
+    Raises ValueError if id1 and id2 are identical or malformed UUIDs.
+    """
+    u1 = uuid.UUID(str(id1))
+    u2 = uuid.UUID(str(id2))
+
+    if u1 == u2:
+        raise ValueError("Self-comparison relationships between identical case IDs are invalid.")
+
+    s1, s2 = sorted([str(u1), str(u2)])
     return s1, s2, f"{s1}:{s2}:RELATED_TO"
 
 
@@ -98,10 +107,37 @@ class LegalSectionGraphNode(BaseGraphNode):
 
 
 # =====================================================================
-# 2. ENTITY ASSOCIATION RELATIONSHIP CONTRACTS
+# 2. BASE RELATIONSHIP CONTRACT
 # =====================================================================
 
-class CasePersonRelContract(BaseModel):
+class BaseGraphRelationship(BaseModel):
+    """Base contract for graph relationships enforcing UUID validation on ID fields."""
+
+    @field_validator(
+        "case_id",
+        "person_id",
+        "vehicle_id",
+        "phone_id",
+        "location_id",
+        "evidence_id",
+        "legal_section_id",
+        "source_case_id",
+        "target_case_id",
+        mode="before",
+        check_fields=False,
+    )
+    def validate_uuid_relationship_field(cls, v: str) -> str:
+        if v is not None:
+            uuid.UUID(str(v))
+            return str(v)
+        return v
+
+
+# =====================================================================
+# 3. ENTITY ASSOCIATION RELATIONSHIP CONTRACTS
+# =====================================================================
+
+class CasePersonRelContract(BaseGraphRelationship):
     """Contract for (:Case)-[:HAS_PERSON {role: ...}]->(:Person)."""
     type: str = "HAS_PERSON"
     case_id: str
@@ -110,7 +146,7 @@ class CasePersonRelContract(BaseModel):
     projection_version: str = "graph-v1"
 
 
-class CaseVehicleRelContract(BaseModel):
+class CaseVehicleRelContract(BaseGraphRelationship):
     """Contract for (:Case)-[:HAS_VEHICLE {role: ...}]->(:Vehicle)."""
     type: str = "HAS_VEHICLE"
     case_id: str
@@ -119,7 +155,7 @@ class CaseVehicleRelContract(BaseModel):
     projection_version: str = "graph-v1"
 
 
-class CasePhoneRelContract(BaseModel):
+class CasePhoneRelContract(BaseGraphRelationship):
     """Contract for (:Case)-[:HAS_PHONE]->(:Phone)."""
     type: str = "HAS_PHONE"
     case_id: str
@@ -127,7 +163,7 @@ class CasePhoneRelContract(BaseModel):
     projection_version: str = "graph-v1"
 
 
-class CaseLocationRelContract(BaseModel):
+class CaseLocationRelContract(BaseGraphRelationship):
     """Contract for (:Case)-[:HAS_LOCATION]->(:Location)."""
     type: str = "HAS_LOCATION"
     case_id: str
@@ -135,7 +171,7 @@ class CaseLocationRelContract(BaseModel):
     projection_version: str = "graph-v1"
 
 
-class CaseEvidenceRelContract(BaseModel):
+class CaseEvidenceRelContract(BaseGraphRelationship):
     """Contract for (:Case)-[:HAS_EVIDENCE {evidence_type: ...}]->(:Evidence)."""
     type: str = "HAS_EVIDENCE"
     case_id: str
@@ -144,7 +180,7 @@ class CaseEvidenceRelContract(BaseModel):
     projection_version: str = "graph-v1"
 
 
-class CaseLegalSectionRelContract(BaseModel):
+class CaseLegalSectionRelContract(BaseGraphRelationship):
     """Contract for (:Case)-[:HAS_LEGAL_SECTION]->(:LegalSection)."""
     type: str = "HAS_LEGAL_SECTION"
     case_id: str
@@ -153,10 +189,10 @@ class CaseLegalSectionRelContract(BaseModel):
 
 
 # =====================================================================
-# 3. CASE-TO-CASE ANALYTICAL RELATIONSHIP CONTRACT
+# 4. CASE-TO-CASE ANALYTICAL RELATIONSHIP CONTRACT
 # =====================================================================
 
-class RelatedToCaseRelContract(BaseModel):
+class RelatedToCaseRelContract(BaseGraphRelationship):
     """Contract for (:Case)-[:RELATED_TO]->(:Case) representing Step 5B assessments."""
     type: str = "RELATED_TO"
     canonical_relationship_key: str

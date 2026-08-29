@@ -9,6 +9,12 @@ from app.services.graph import (
     LocationGraphNode,
     EvidenceGraphNode,
     LegalSectionGraphNode,
+    CasePersonRelContract,
+    CaseVehicleRelContract,
+    CasePhoneRelContract,
+    CaseLocationRelContract,
+    CaseEvidenceRelContract,
+    CaseLegalSectionRelContract,
     RelatedToCaseRelContract,
     canonicalize_case_pair,
     neo4j_connection_service,
@@ -61,8 +67,8 @@ def test_deterministic_node_ids():
         )
 
 
-def test_canonical_relationship_key_ordering():
-    """Verifies that canonicalize_case_pair is completely order-independent."""
+def test_canonical_relationship_key_valid_distinct_pair():
+    """Test A & B: Verifies that canonicalize_case_pair handles valid distinct UUID pairs deterministically regardless of order."""
     u1 = "11111111-1111-1111-1111-111111111111"
     u2 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
@@ -74,9 +80,40 @@ def test_canonical_relationship_key_ordering():
     assert key1 == key2 == "11111111-1111-1111-1111-111111111111:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:RELATED_TO"
 
 
+def test_canonical_relationship_key_identical_pair_rejection():
+    """Test C: Verifies that canonicalize_case_pair raises ValueError for identical case IDs."""
+    u1 = "11111111-1111-1111-1111-111111111111"
+    with pytest.raises(ValueError, match="Self-comparison relationships between identical case IDs are invalid."):
+        canonicalize_case_pair(u1, u1)
+
+
+def test_relationship_contracts_uuid_validation():
+    """Test D & E: Verifies that relationship contracts accept valid UUIDs and reject invalid strings."""
+    c_uuid = str(uuid.uuid4())
+    p_uuid = str(uuid.uuid4())
+
+    # Valid UUIDs accepted
+    cp_rel = CasePersonRelContract(case_id=c_uuid, person_id=p_uuid, role="ACCUSED")
+    assert cp_rel.case_id == c_uuid
+    assert cp_rel.person_id == p_uuid
+
+    cv_rel = CaseVehicleRelContract(case_id=c_uuid, vehicle_id=str(uuid.uuid4()), role="STOLEN_VEHICLE")
+    assert cv_rel.case_id == c_uuid
+
+    # Invalid UUIDs rejected
+    with pytest.raises(ValueError):
+        CasePersonRelContract(case_id="invalid-case-uuid", person_id=p_uuid)
+
+    with pytest.raises(ValueError):
+        CaseVehicleRelContract(case_id=c_uuid, vehicle_id="invalid-vehicle-uuid")
+
+    with pytest.raises(ValueError):
+        CasePhoneRelContract(case_id=c_uuid, phone_id="not-a-phone-uuid")
+
+
 def test_related_to_directional_canonicalization():
-    """Verifies that RelatedToCaseRelContract.from_assessment converts Step 5B assessment into canonical directional contract."""
-    u_high = "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"
+    """Test F: Verifies that RelatedToCaseRelContract.from_assessment converts Step 5B assessment into canonical directional contract."""
+    u_high = "ffffffff-ffff-ffff-ffff-ffffffffffff"
     u_low = "11111111-1111-1111-1111-111111111111"
 
     assessment = RelationshipConfidenceAssessment(
