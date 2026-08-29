@@ -30,6 +30,17 @@ from app.services.graph.projection import (
     Neo4jGraphProjectionService,
     neo4j_graph_projection_service,
 )
+from app.services.graph.traversal import (
+    ALLOWED_NODE_TYPES,
+    ALLOWED_RELATIONSHIP_TYPES,
+    GraphTraversalRequest,
+    GraphPathNode,
+    GraphPathEdge,
+    GraphTraversalPath,
+    GraphTraversalResult,
+    Neo4jGraphTraversalService,
+    neo4j_graph_traversal_service,
+)
 
 __all__ = [
     "Neo4jHealthCheck",
@@ -56,4 +67,13 @@ __all__ = [
     "neo4j_schema_manager",
     "Neo4jGraphProjectionService",
     "neo4j_graph_projection_service",
+    "ALLOWED_NODE_TYPES",
+    "ALLOWED_RELATIONSHIP_TYPES",
+    "GraphTraversalRequest",
+    "GraphPathNode",
+    "GraphPathEdge",
+    "GraphTraversalPath",
+    "GraphTraversalResult",
+    "Neo4jGraphTraversalService",
+    "neo4j_graph_traversal_service",
 ]
