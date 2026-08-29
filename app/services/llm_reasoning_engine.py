@@ -223,20 +223,20 @@ class GroqLLMClient(BaseLLMClient):
     def _make_http_request(
         self, url: str, headers: Dict[str, str], body: Dict[str, Any], provider_name: str
     ) -> Tuple[Optional[str], Optional[ReasoningStatus], Optional[str]]:
+        import httpx
         try:
-            req_data = json.dumps(body).encode("utf-8")
-            req = urllib.request.Request(url, data=req_data, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=settings.LLM_TIMEOUT_SECONDS) as response:
-                resp_bytes = response.read()
-                resp_json = json.loads(resp_bytes.decode("utf-8"))
-                content = resp_json["choices"][0]["message"]["content"]
-                return content, ReasoningStatus.SUCCESS, None
-        except urllib.error.HTTPError as e:
-            if e.code == 429:
-                return None, ReasoningStatus.RATE_LIMITED, f"{provider_name} rate limit exceeded (429)."
-            return None, ReasoningStatus.PROVIDER_UNAVAILABLE, f"{provider_name} HTTP error ({e.code})."
-        except urllib.error.URLError:
-            return None, ReasoningStatus.TIMEOUT, f"{provider_name} request timed out or connection failed."
+            with httpx.Client(timeout=settings.LLM_TIMEOUT_SECONDS) as client:
+                response = client.post(url, json=body, headers=headers)
+                if response.status_code == 200:
+                    resp_json = response.json()
+                    content = resp_json["choices"][0]["message"]["content"]
+                    return content, ReasoningStatus.SUCCESS, None
+                elif response.status_code == 429:
+                    return None, ReasoningStatus.RATE_LIMITED, f"{provider_name} rate limit exceeded (429)."
+                else:
+                    return None, ReasoningStatus.PROVIDER_UNAVAILABLE, f"{provider_name} HTTP error ({response.status_code}): {response.text[:150]}"
+        except httpx.TimeoutException:
+            return None, ReasoningStatus.TIMEOUT, f"{provider_name} request timed out."
         except Exception as ex:
             return None, ReasoningStatus.PROVIDER_UNAVAILABLE, f"{provider_name} error: {str(ex)}"
 

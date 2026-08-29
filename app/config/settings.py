@@ -75,9 +75,9 @@ class Settings(BaseSettings):
     LLM_LOCAL_PROVIDER: str = "ollama"
     GROQ_API_KEY: Optional[str] = None
     GROQ_API_KEYS: Optional[str] = None
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
     CEREBRAS_API_KEY: Optional[str] = None
-    CEREBRAS_MODEL: str = "llama3.1-70b"
+    CEREBRAS_MODEL: str = "gpt-oss-120b"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3:latest"
     LLM_TEMPERATURE: float = 0.0
