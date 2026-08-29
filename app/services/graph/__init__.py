@@ -41,6 +41,15 @@ from app.services.graph.traversal import (
     Neo4jGraphTraversalService,
     neo4j_graph_traversal_service,
 )
+from app.services.graph.analytics import (
+    NetworkAnalyticsRequest,
+    NodeCentralityMetric,
+    NetworkNodeMetrics,
+    NetworkComponentSummary,
+    NetworkAnalyticsResult,
+    Neo4jNetworkAnalyticsService,
+    neo4j_network_analytics_service,
+)
 
 __all__ = [
     "Neo4jHealthCheck",
@@ -76,4 +85,11 @@ __all__ = [
     "GraphTraversalResult",
     "Neo4jGraphTraversalService",
     "neo4j_graph_traversal_service",
+    "NetworkAnalyticsRequest",
+    "NodeCentralityMetric",
+    "NetworkNodeMetrics",
+    "NetworkComponentSummary",
+    "NetworkAnalyticsResult",
+    "Neo4jNetworkAnalyticsService",
+    "neo4j_network_analytics_service",
 ]
